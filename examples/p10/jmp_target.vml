@@ -1,0 +1,6 @@
+SHAPE   ctr, 1, 1
+PRINT   ctr
+loop:
+PRINT   ctr
+LOOP_CNT ctr, @loop
+HALT

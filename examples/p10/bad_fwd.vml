@@ -1,0 +1,4 @@
+SHAPE   ctr, 1, 1
+LOOP_CNT ctr, @fwd
+fwd:
+HALT

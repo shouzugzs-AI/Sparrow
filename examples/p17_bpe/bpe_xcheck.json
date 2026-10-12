@@ -1,0 +1,132 @@
+{
+ "pass": 23,
+ "fail": 0,
+ "unproven": 2,
+ "results": [
+  {
+   "name": "(m) Python emitter reproduces the artifact byte for byte",
+   "ok": true,
+   "detail": "5352 B vs 5352 B, sha ecda210459697343"
+  },
+  {
+   "name": "bpe feature compiles alone (default-features = false)",
+   "ok": true,
+   "detail": "4.7s"
+  },
+  {
+   "name": "Rust and Python agree on every header field",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "Rust arena size == Python's exact expansion size",
+   "ok": true,
+   "detail": "rust exact=38189 used=38189 python exact=38189"
+  },
+  {
+   "name": "Rust decode == Python decode on all 3881 corpus words",
+   "ok": true,
+   "detail": "mismatches=0"
+  },
+  {
+   "name": "Rust round trip over the 37800-byte corpus",
+   "ok": true,
+   "detail": "n_ids=15080 n_bytes=37800 sha_in=c769f7e9f390aa05 sha_out=c769f7e9f390aa05"
+  },
+  {
+   "name": "Rust and Python agree on the corpus id count",
+   "ok": true,
+   "detail": "rust=15080 python=15080"
+  },
+  {
+   "name": "(a) truncated file -> G1",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: file length disagrees with header"
+  },
+  {
+   "name": "(b) n_merges +1 -> G5/G3",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: n_pieces != 256 + n_merges"
+  },
+  {
+   "name": "(b2) n_merges -1 -> G5 (n_pieces breaks first)",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: n_pieces != 256 + n_merges"
+  },
+  {
+   "name": "(b3) merge_bytes -8 with a matching length -> G3",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: merge_bytes != n_merges * MERGE_ENTRY"
+  },
+  {
+   "name": "(c) wrong magic -> G8",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: bad vocabulary magic"
+  },
+  {
+   "name": "(d) version 2 -> G9",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: unsupported vocabulary version"
+  },
+  {
+   "name": "(e) reserved0 != 0 -> G14",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: reserved0 is not zero"
+  },
+  {
+   "name": "(f) merged_id off by one -> G11",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: merged_id is not 256 + merge index"
+  },
+  {
+   "name": "(g) operand references a future id -> G10",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: merge operands must be ids that already exist"
+  },
+  {
+   "name": "(h) n_pieces +1 -> G5",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: n_pieces != 256 + n_merges"
+  },
+  {
+   "name": "(i) special_bytes != n_special*5 -> G15",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: special_bytes != n_special * 5"
+  },
+  {
+   "name": "(j) file shorter than header -> G0",
+   "ok": true,
+   "detail": "rc=9 msg=OK numbers=yes | BPE: available bytes below header"
+  },
+  {
+   "name": "(j2) out-of-range token id at decode -> G12",
+   "ok": true,
+   "detail": "rc=9 | BPE: token id out of vocabulary range"
+  },
+  {
+   "name": "(k) mutating ONE token id changes the output",
+   "ok": true,
+   "detail": "orig[0]=414 mut[0]=65 changed=True"
+  },
+  {
+   "name": "(k2) same control through the RUST decoder",
+   "ok": true,
+   "detail": "rust hex differs=True"
+  },
+  {
+   "name": "(l) mutating ONE merge operand changes that id's bytes",
+   "ok": true,
+   "detail": "rule=660 id=916 left 915->0: rust=231 B, python-expect=231 B, differs-from-orig=True"
+  },
+  {
+   "name": "special (byte-fallback) table path on a REAL file",
+   "ok": null,
+   "detail": "trained vocab has n_special=0: every piece is in the merge tree (665/665 rules fire). G6/G7 are therefore exercised only by the malformed-file controls above, never by the production artifact."
+  },
+  {
+   "name": "encoder == a third-party BPE implementation",
+   "ok": null,
+   "detail": "there is no reference tokenizer in this repo and no pip allowed; agreement is between two implementations that were both written here."
+  }
+ ]
+}

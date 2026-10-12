@@ -1,0 +1,9 @@
+[package]
+name = "vmlm-asm"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vmlm-core = { path = "../core" }

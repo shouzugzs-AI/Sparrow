@@ -1,0 +1,113 @@
+
+==============================================================================
+P17-P4 ENGINE SIZE -- does the server crate change the engine?
+==============================================================================
+workspace root : <repo>
+engine build cwd: <repo>/runtime
+workspace members: asm, core, pt2vmb, runtime, server, tests, train
+
+==============================================================================
+0. REPRODUCIBLE FAILURE -- building the engine from the workspace ROOT
+==============================================================================
+Recorded because cargo's config lookup starts at the CWD and walks
+UP only; the engine's link flags live in runtime/.cargo/config.toml.
+
+    cwd = <repo>
+    $ cargo build --release -p vmlm-runtime --target x86_64-pc-windows-msvc --target-dir <repo>/target/t_p17_rootctl_025746
+    exit code = 101
+    | error: linking with `link.exe` failed: exit code: 1561
+    | = note: LINK : fatal error LNK1561: 必须定义入口点
+    => CONFIRMED: this command fails, so every engine build in
+       this project must state its working directory.
+
+==============================================================================
+1. BUILD A -- workspace WITH server/
+==============================================================================
+    $ cargo build --release -p vmlm-runtime --target x86_64-pc-windows-msvc --target-dir <repo>/target/t_p17_size_a_025746
+    exit code = 0
+    size   = 74752 B
+    sha256 = 3906c803acfac5a13af494616eab9cab22c65ebec7210b1b32ae7a105e62db39
+
+==============================================================================
+2. BUILD A2 -- SAME sources, second clean target dir  == NOISE FLOOR
+==============================================================================
+    This is the control the first version of this script was missing.
+    If two builds of IDENTICAL source differ, then a difference between
+    'with server' and 'without server' proves nothing on its own.
+    size   = 74752 B
+    sha256 = 261f36d4a9d3148ca14e2a0c1b24f62ca4dec6973745898179537c083b5a6685
+
+  A vs A2 (identical sources)
+    size A = 74752 B   size B = 74752 B
+    RSDS (PDB signature) at offset 72560
+    differing bytes: 20
+    in linker build-stamp regions: 20  (offsets [200, 72456, 72484, 72512, 72564, 72565, 72566, 72567] ...)
+    OUTSIDE those regions         : 0  (offsets [])
+    -> only build stamps differ (code+data identical)
+
+    INTERPRETATION: the build is not byte-reproducible; the comparison must ignore the linker's build stamps
+
+==============================================================================
+3. BUILD B -- pruned workspace WITHOUT server/
+==============================================================================
+    Only server/ is removed (and its members entry); everything else is
+    byte-identical source, so any code difference is attributable to it.
+    pruned: members = ["core", "asm", "pt2vmb", "runtime", "tests", "train"]
+    size   = 74752 B
+    sha256 = ac1c5e695bb287d6658307aa107bccd4dc1a472af1b9f7dd160ccf913a4fc2a3
+
+  A (with server) vs B (without server)
+    size A = 74752 B   size B = 74752 B
+    RSDS (PDB signature) at offset 72560
+    differing bytes: 24
+    in linker build-stamp regions: 24  (offsets [200, 201, 72456, 72457, 72484, 72485, 72512, 72513] ...)
+    OUTSIDE those regions         : 0  (offsets [])
+    -> only build stamps differ (code+data identical)
+
+==============================================================================
+4. POSITIVE CONTROL -- can this comparison detect a REAL change?
+==============================================================================
+    A comparison that always says 'identical' proves nothing. Rebuilding
+    WITH --features train must produce a real, non-stamp difference.
+    size   = 96256 B   (vs 74752 B for the default build)
+
+  A (default) vs C (--features train)
+    size A = 74752 B   size B = 96256 B
+    SIZE DIFFERS by +21504 B -> a real difference
+    delta  = +21504 B
+
+    PASS: the comparison detects a genuine change.
+
+==============================================================================
+5. CRITERION
+==============================================================================
+  A  (workspace WITH server/)      :  74752 B  3906c803acfac5a13af494616eab9cab22c65ebec7210b1b32ae7a105e62db39
+  A2 (same sources, other dir)     :  74752 B  261f36d4a9d3148ca14e2a0c1b24f62ca4dec6973745898179537c083b5a6685
+  B  (workspace WITHOUT server/)   :  74752 B  ac1c5e695bb287d6658307aa107bccd4dc1a472af1b9f7dd160ccf913a4fc2a3
+  engine budget                    :  84480 B
+  headroom                         : 9728 B
+
+  naive sha256 A == B              : False   <- would FAIL, but is the
+                                          wrong criterion (see line 2)
+  noise floor (A vs A2) real diffs : yes
+
+  NOTE ON THE CRITERION. The naive requirement 'sha256(A) == sha256(B)'
+  is FALSE here -- and it is false for a reason that has nothing to do
+  with the server crate: builds A and A2 come from IDENTICAL sources and
+  still differ in 20 bytes. MSVC's linker stamps a fresh PE
+  TimeDateStamp and a fresh PDB GUID into every link. So the criterion
+  used is the strongest one that is actually well-posed:
+
+      every differing byte lies in a linker build-stamp region,
+      i.e. the emitted CODE AND DATA are identical.
+
+  [PASS] removing the server crate from the workspace changes NOTHING
+         in the engine's code or data. Every differing byte between A
+         and B is a linker build stamp; the emitted code and data are
+         identical. Size 74752 B and headroom 9728 B are unaffected.
+
+==============================================================================
+SUMMARY
+==============================================================================
+  checks failed: 0
+  [PASS]

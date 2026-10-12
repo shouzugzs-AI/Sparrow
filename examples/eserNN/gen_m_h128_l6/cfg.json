@@ -1,0 +1,22 @@
+{
+  "vocab": 32,
+  "hidden": 128,
+  "heads": 8,
+  "head_dim": 16,
+  "inter": 384,
+  "decay_hidden": 32,
+  "eps": 1e-06,
+  "T": 6,
+  "layers": 6,
+  "tokens": [
+    22,
+    15,
+    24,
+    6,
+    19,
+    28
+  ],
+  "seed": 20240927,
+  "n_instructions": 1128,
+  "n_tensors": 155
+}

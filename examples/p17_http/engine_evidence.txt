@@ -1,0 +1,27 @@
+==============================================================================
+P17-P4 BENCH ENGINE -- the artifact the HTTP server drives
+==============================================================================
+target dir : <repo>/target/bench
+build cwd  : <repo>/runtime   (required: see the module docstring)
+
+Only the `bench` feature gives vmlm-runtime its argv interface
+(`<model.vmb> [reps[:slot]]` + an out.bin dump). The default build
+ignores argv entirely: exit 0, no output file.
+
+$ cargo build --release -p vmlm-runtime --features bench --target x86_64-pc-windows-msvc --target-dir <repo>/target/bench
+  exit code = 0
+  size   = 83968 B
+  sha256 = 8eeb7456d2e02e9b4381c2942db3c913515314abacac42dcf68c48efed0d665f
+  (note: the engine is NOT byte-reproducible across links -- MSVC stamps
+   a PE TimeDateStamp and a fresh PDB GUID. Different sha256 across two
+   builds is expected; see tools/p17_http_size.py section 2.)
+
+=== capability probe: does it write out.bin? ===
+  model: <repo>/examples/p17_http/model.vmb
+  result: YES (24 B out.bin)
+
+  PASS: the engine accepts `model.vmb 1:0` and writes out.bin.
+  The server will find it at this path automatically (it is the first
+  candidate server/src/engine.rs probes).
+
+[PASS]

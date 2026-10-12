@@ -1,0 +1,5 @@
+SHAPE x, 1, 4
+SHAPE eps, 1, 1
+RMSNORM x, small_bf16, eps
+PRINT x
+HALT

@@ -1,0 +1,27 @@
+﻿========================================================================
+P17 P1 INDEPENDENT PYTHON DENSE REFERENCE (no Rust calls)
+========================================================================
+dump          = examples\p17_infer\dump_L3_d64_k020_k8_s5.bin
+cfg           = layers=3 d=64 k0=20 k=8 seq=5 vocab=64
+tokens        = [45, 50, 25, 47, 16]
+
+--- PRNG cross-check (constants rewritten in Python) ---
+python: neuron_seed(0,0)=4245456706  neuron_conn_src(0,0,0,64,20)=24  neuron_rand(12345,7)=2955612665
+[PASS] C1 src topology from rewritten PRNG == dumped src  bad=0 of 3840 (layer,i,j) triples
+[PASS] C2 sparse forward: Python == Rust, BITWISE  bit_diffs=0 / 320  max|diff|=0.000000000e+00  first_diff_idx=-1  (py macs=7680)
+[PASS] C3 per-layer inputs identical (localizes divergence to a layer)  bad=0  first_bad_layer=-1  (per-layer compare, 3 layers)
+
+--- must-fail control: perturbation detection ---
+layer0 neuron0: selected=[0, 1, 2, 11, 12, 14, 18, 19] unselected=[3, 4, 5, 6] (k=8 k0=20)
+[PASS] C4a perturb a SELECTED weight => output MUST change  conn j=0  changed_bits=1  max|diff|=3.761798143e-05
+[PASS] C4b perturb an UNSELECTED weight => output must NOT change  conn j=3  changed_bits=0  max|diff|=0.000000000e+00  (the P16 pitfall, asserted)
+
+--- independent recomputation of the two ratios ---
+python: union_fraction = 1.000000  (|union|=64 / d=64)
+python: skip_rate      = 0.600000  (macs=7680 / full=19200)
+python: activated conns= 7680
+[PASS] C5 union_fraction is a fraction in (0,1]  union_fraction=1.000000
+
+========================================================================
+checks=6 pass=6 fail=0
+========================================================================

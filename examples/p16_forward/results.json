@@ -1,0 +1,264 @@
+{
+  "config": {
+    "shape": {
+      "n_layers": 24,
+      "dmodel": 1536,
+      "k": 20
+    },
+    "floor": 24,
+    "ratios": [
+      10,
+      20,
+      30,
+      40
+    ]
+  },
+  "criterion1": {
+    "per_layer_active": [
+      93,
+      95,
+      90,
+      94,
+      92,
+      93,
+      96,
+      94,
+      93,
+      95,
+      93,
+      94,
+      94,
+      94,
+      92,
+      94,
+      94,
+      93,
+      92,
+      94,
+      93,
+      96,
+      96,
+      93
+    ],
+    "stats": {
+      "min": 90,
+      "median": 94.0,
+      "max": 96,
+      "mean": 93.625,
+      "n": 24
+    },
+    "can_fail_rows": [
+      {
+        "topk_keep": 24,
+        "min_active": 23,
+        "check_fails": true
+      },
+      {
+        "topk_keep": 12,
+        "min_active": 11,
+        "check_fails": true
+      },
+      {
+        "topk_keep": 8,
+        "min_active": 7,
+        "check_fails": true
+      },
+      {
+        "topk_keep": 4,
+        "min_active": 3,
+        "check_fails": true
+      },
+      {
+        "topk_keep": 2,
+        "min_active": 2,
+        "check_fails": true
+      },
+      {
+        "topk_keep": 1,
+        "min_active": 1,
+        "check_fails": true
+      }
+    ],
+    "can_fail_config": [
+      24,
+      23
+    ]
+  },
+  "skip_proof": {
+    "layer0_evaluated": 7662,
+    "dense_equivalent": 2359296,
+    "reduction": 307.92169146436964,
+    "union": {
+      "n_connections": 30720,
+      "n_distinct_sources": 1536,
+      "n_possible_sources": 1536,
+      "union_fraction": 1.0
+    },
+    "duplicate_rows": 0
+  },
+  "criterion3": {
+    "k30": 52,
+    "q1_correctness": 0.0,
+    "q1_perturbed": 1.4911334684637803,
+    "q2_sparsity_loss": 0.9999997597027218,
+    "bar": 0.005,
+    "pass_": false,
+    "q2_one_conn": 434255654.3653816,
+    "q2_zeroed": 1.0,
+    "can_fail": true,
+    "cosine": 0.019210529692973,
+    "no_global_topk_cosine": 0.4388396630722332,
+    "no_global_topk_rel_l2": 2.267985462635083,
+    "norm_sparse": 0.00024166711542380773,
+    "norm_dense": 19.325930860392805
+  },
+  "criterion2": {
+    "sweep": [
+      {
+        "ratio": 10,
+        "k": 154,
+        "q1_correctness": 0.0,
+        "q2_loss": 0.9999999999999981,
+        "cosine": 0.02030660822566034,
+        "evaluated": 22647,
+        "dense": 2359296,
+        "min_active": 143,
+        "median_active": 148.0,
+        "union_fraction": 1.0,
+        "nz_sparse": 144,
+        "nz_q1": 144,
+        "nz_coupled": 1536
+      },
+      {
+        "ratio": 20,
+        "k": 77,
+        "q1_correctness": 0.0,
+        "q2_loss": 1.000000001201916,
+        "cosine": -0.021572569118320468,
+        "evaluated": 7090,
+        "dense": 2359296,
+        "min_active": 89,
+        "median_active": 93.0,
+        "union_fraction": 1.0,
+        "nz_sparse": 93,
+        "nz_q1": 93,
+        "nz_coupled": 1536
+      },
+      {
+        "ratio": 30,
+        "k": 52,
+        "q1_correctness": 0.0,
+        "q2_loss": 0.9999997597027218,
+        "cosine": 0.019210529692973,
+        "evaluated": 4779,
+        "dense": 2359296,
+        "min_active": 89,
+        "median_active": 93.0,
+        "union_fraction": 1.0,
+        "nz_sparse": 94,
+        "nz_q1": 94,
+        "nz_coupled": 1536
+      },
+      {
+        "ratio": 40,
+        "k": 39,
+        "q1_correctness": 0.0,
+        "q2_loss": 0.9999924988845168,
+        "cosine": 0.012172803591047799,
+        "evaluated": 3654,
+        "dense": 2359296,
+        "min_active": 90,
+        "median_active": 94.0,
+        "union_fraction": 1.0,
+        "nz_sparse": 93,
+        "nz_q1": 93,
+        "nz_coupled": 1536
+      }
+    ],
+    "knee": null,
+    "guess": 30,
+    "agrees": false,
+    "strict_knee": null
+  },
+  "real": {
+    "n_neurons": 1536,
+    "k0": 20,
+    "total_pairs": 30720,
+    "union_fraction": 1.0,
+    "duplicate_rows": 190,
+    "weight_abs_mean": 0.7498028874397278,
+    "weight_std": 0.1441061943769455,
+    "topk_keep": 96,
+    "per_layer_active": [
+      92,
+      91,
+      93,
+      92,
+      92,
+      90,
+      94,
+      95,
+      95,
+      94,
+      92,
+      92,
+      95,
+      95,
+      94,
+      93,
+      94,
+      94,
+      93,
+      89,
+      94,
+      96,
+      91,
+      91
+    ],
+    "stats": {
+      "min": 89,
+      "median": 93.0,
+      "max": 96,
+      "mean": 92.95833333333333,
+      "n": 24
+    },
+    "criterion1_pass": true,
+    "criterion1_can_fail": true,
+    "can_fail_rows": [
+      {
+        "topk_keep": 24,
+        "min_active": 22,
+        "fails": true
+      },
+      {
+        "topk_keep": 12,
+        "min_active": 11,
+        "fails": true
+      },
+      {
+        "topk_keep": 8,
+        "min_active": 7,
+        "fails": true
+      },
+      {
+        "topk_keep": 4,
+        "min_active": 4,
+        "fails": true
+      },
+      {
+        "topk_keep": 2,
+        "min_active": 2,
+        "fails": true
+      },
+      {
+        "topk_keep": 1,
+        "min_active": 1,
+        "fails": true
+      }
+    ],
+    "layer0_evaluated": 7675,
+    "dense_equivalent": 2359296,
+    "reduction": 307.40013029315963,
+    "limitation": "the shipped artifact is LAYER 0 only; the same real connection lists are reused across the 24 layers with a per-layer input pattern. Topology is real (1536 neurons, k0=20, real src ids and weights); per-layer connection lists are NOT independently emitted."
+  }
+}

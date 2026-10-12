@@ -1,0 +1,298 @@
+{
+  "task": "P16-1",
+  "section": "conn_sparse",
+  "tag_SEC_CONN_SPARSE": 3,
+  "format": {
+    "magic": "0x31525343 ('CSR1')",
+    "header_fields": {
+      "magic": 0,
+      "n_neurons": 4,
+      "k0": 8,
+      "total_pairs": 12,
+      "layer": 16
+    },
+    "arrays": [
+      "conn_offsets[n_neurons+1] u32",
+      "conn_src[total_pairs] u32",
+      "conn_weights[total_pairs] f32 (raw bits, SoA)"
+    ],
+    "section_bytes_formula": "CS_HDR + (n+1)*4 + E*4 + E*4",
+    "invariants": [
+      "conn_offsets[0] == 0",
+      "conn_offsets monotone non-decreasing",
+      "conn_offsets[n] == total_pairs == len(conn_src) == len(conn_weights)",
+      "every conn_src < n_neurons (self-loops allowed)",
+      "k0 > 0 => every neuron has EXACTLY k0 connections"
+    ],
+    "seeding_rule": "seed(layer,i) = splitmix32(0x9E3779B9*(layer+1) XOR 0x85EBCA6B*(i+1)); rand(seed,j) = splitmix32(seed XOR 0x9E3779B9*(j+1)); src = rand(seed, j==0 ? 0xFFFFFFFF : j) % n_neurons; weight_bits = (rand(seed XOR 0x5A5A5A5A, j) & 0x7FFFFF) | 0x3F000000"
+  },
+  "vmlm_acceptance": {
+    "shape": {
+      "layers": 24,
+      "dim": 1536,
+      "k0": 20
+    },
+    "n_neurons_per_layer": 1536,
+    "total_pairs": 30720,
+    "offsets_bytes": 6148,
+    "src_bytes": 122880,
+    "weights_bytes": 122880,
+    "section_bytes_per_layer": 251928,
+    "whole_model_bytes": 6046272,
+    "on_disk_bytes": 251928
+  },
+  "guards": [
+    {
+      "guard": "G0  avail < CS_HDR",
+      "mode": "g0_short_header",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: available bytes below header",
+        "CS: avail=19 CS_HDR=20"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G1  truncated by 4 bytes (avail != section_bytes)",
+      "mode": "g1_truncated",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: section length disagrees with header",
+        "CS: avail=251924 required=251928"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G1' OVER-declared length (the S8 defect class)",
+      "mode": "g1_overdeclared",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: section length disagrees with header",
+        "CS: avail=251932 required=251928"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G2  n_neurons == 0",
+      "mode": "g2_zero_neurons",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: n_neurons is zero"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G3  k0*n_neurons overflows u32",
+      "mode": "g3_overflow",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: total pair count overflows u32 (k0 * n_neurons)"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G5  conn_offsets not monotonically non-decreasing",
+      "mode": "g5_non_monotonic",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: conn_offsets not monotonically non-decreasing",
+        "CS: index=1536 prev=30700 cur=30699"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G6  k0>0 but a neuron has 0 connections",
+      "mode": "g6_degree",
+      "extra": [
+        "0"
+      ],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: neuron does not have exactly k0 connections",
+        "CS: neuron=0 count=0 k0=20"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G7  total_pairs != k0 * n_neurons",
+      "mode": "g7_total_pairs",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: total_pairs != k0 * n_neurons",
+        "CS: total_pairs=30719 k0=20 n_neurons=1536 expected=30720"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G8  bad section magic",
+      "mode": "g8_bad_magic",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: bad section magic",
+        "CS: got=0xdeadbeef want=0x31525343"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G9  conn_offsets[0] != 0",
+      "mode": "g9_first_offset",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: conn_offsets[0] != 0",
+        "CS: conn_offsets[0]=1"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G10 conn_offsets[n] != total_pairs",
+      "mode": "g10_last_offset",
+      "extra": [],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: conn_offsets[n_neurons] != total_pairs",
+        "CS: conn_offsets[n]=30700 total_pairs=30720"
+      ],
+      "fired": true,
+      "accepted": false
+    },
+    {
+      "guard": "G11 conn_src out of range (src_id >= n_neurons)",
+      "mode": "g11_src_range",
+      "extra": [
+        "0"
+      ],
+      "exit_code": 9,
+      "expected_exit": 9,
+      "message_lines": [
+        "CS: conn_src out of range (src_id >= n_neurons)",
+        "CS: at_pair=0 src_id=1536 n_neurons=1536"
+      ],
+      "fired": true,
+      "accepted": false
+    }
+  ],
+  "mutation_necessity": [
+    {
+      "guard": "G1  length == section_bytes",
+      "mutant_exit_code": 0,
+      "mutant_accepted_illegal_input": true,
+      "mutation_shape": "accepted",
+      "verdict_shape": "UNIQUELY LOAD-BEARING (removal lets it through)",
+      "mutant_messages": [],
+      "consequence_if_unshipped": "the reader accepts a section 4 bytes shorter than the header demands"
+    },
+    {
+      "guard": "G5  monotonicity",
+      "mutant_exit_code": 9,
+      "mutant_accepted_illegal_input": false,
+      "mutation_shape": "weaker_guard",
+      "verdict_shape": "DEFENCE-IN-DEPTH (removal is caught by another guard)",
+      "mutant_messages": [
+        "CS: conn_offsets[n_neurons] != total_pairs",
+        "CS: conn_offsets[n]=30699 total_pairs=30720"
+      ],
+      "consequence_if_unshipped": "the reader walks past non-monotone offsets"
+    },
+    {
+      "guard": "G7  total_pairs == k0*n",
+      "mutant_exit_code": 9,
+      "mutant_accepted_illegal_input": false,
+      "mutation_shape": "weaker_guard",
+      "verdict_shape": "DEFENCE-IN-DEPTH (removal is caught by another guard)",
+      "mutant_messages": [
+        "CS: section length disagrees with header",
+        "CS: avail=251928 required=251920"
+      ],
+      "consequence_if_unshipped": "the reader accepts a header whose total_pairs is not k0*n"
+    },
+    {
+      "guard": "G8  section magic",
+      "mutant_exit_code": 0,
+      "mutant_accepted_illegal_input": true,
+      "mutation_shape": "accepted",
+      "verdict_shape": "UNIQUELY LOAD-BEARING (removal lets it through)",
+      "mutant_messages": [],
+      "consequence_if_unshipped": "the reader parses a foreign section as if it were conn_sparse"
+    },
+    {
+      "guard": "G9  conn_offsets[0] == 0",
+      "mutant_exit_code": 9,
+      "mutant_accepted_illegal_input": false,
+      "mutation_shape": "weaker_guard",
+      "verdict_shape": "DEFENCE-IN-DEPTH (removal is caught by another guard)",
+      "mutant_messages": [
+        "CS: neuron does not have exactly k0 connections",
+        "CS: neuron=0 count=19 k0=20"
+      ],
+      "consequence_if_unshipped": "the reader accepts a nonzero offsets[0], so neuron 0's slice is wrong"
+    },
+    {
+      "guard": "G10 conn_offsets[n] == total_pairs",
+      "mutant_exit_code": 9,
+      "mutant_accepted_illegal_input": false,
+      "mutation_shape": "weaker_guard",
+      "verdict_shape": "DEFENCE-IN-DEPTH (removal is caught by another guard)",
+      "mutant_messages": [
+        "CS: neuron does not have exactly k0 connections",
+        "CS: neuron=1535 count=0 k0=20"
+      ],
+      "consequence_if_unshipped": "the reader accepts an offsets[n] that never reaches total_pairs"
+    },
+    {
+      "guard": "G11 conn_src < n_neurons",
+      "mutant_exit_code": 0,
+      "mutant_accepted_illegal_input": true,
+      "mutation_shape": "accepted",
+      "verdict_shape": "UNIQUELY LOAD-BEARING (removal lets it through)",
+      "mutant_messages": [],
+      "consequence_if_unshipped": "the reader accepts an out-of-range src_id -- an OOB read downstream"
+    },
+    {
+      "guard": "G6  exactly k0 per neuron",
+      "mutant_exit_code": 0,
+      "mutant_accepted_illegal_input": true,
+      "mutation_shape": "accepted",
+      "verdict_shape": "UNIQUELY LOAD-BEARING (removal lets it through)",
+      "mutant_messages": [],
+      "consequence_if_unshipped": "the reader silently accepts a neuron whose degree is not k0"
+    }
+  ],
+  "engine_size_note": "conn_sparse is behind #[cfg(feature = \"conn-sparse\")] and the feature is NOT in vmlm-core's default set, so the default inference engine does not link it; the measured default size is unchanged.",
+  "honest_limits": [
+    "This is the STORAGE half of P1 only. It computes no forward pass and defines no opcode; connection-sparse ACTIVATION is another task.",
+    "k0>0 requires EXACTLY k0 connections per neuron, so the format cannot express a pruned-away ('dead') neuron. That is a known restriction of this version, not an oversight.",
+    "The initial weights are a deterministic, bit-exact placeholder distribution in [0.5, 1.0) (all positive). They carry no statistical meaning and are NOT trained weights.",
+    "src ids are drawn with % n_neurons and may repeat; 'k0 distinct sources' is NOT guaranteed or checked. Duplicate srcs mean parallel connections.",
+    "SEC_CONN_SPARSE is a reserved tag used only in examples/p16_conn; no production .vmb carries this section yet."
+  ]
+}

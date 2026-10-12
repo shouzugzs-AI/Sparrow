@@ -1,0 +1,66 @@
+﻿[package]
+name = "vmlm-core"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vmlm-trans = { path = "../trans" }
+
+vmlm-ops = { path = "../ops" }
+
+
+vmlm-tensor = { path = "../tensor" }
+vmlm-sys = { path = "../sys" }
+
+[features]
+# 训练路径（反向指令 + Adam/SGD）默认开启。
+# 只做推理时可 --no-default-features 裁掉，用于压体积（白皮书 §7.4）。
+default = ["train"]
+train = []
+# S5：按神经元组织的 KV-Cache（装载期索引 + 重排 + 寻址）。
+#
+# 为什么默认关闭、且要单独一个 feature：
+#   它是**装载期/校验期**代码 —— 重排只发生一次，寻址式在稳态前向里
+#   一次都不调用。把它无条件链进推理引擎，等于让「引擎体积」这个指标
+#   去度量测试脚手架，那会让预算失真。
+#   这正是本项目一贯的做法：`train` 也是这么分的（推理裁掉、训练才链）。
+#   需要它时：--features neuron-kv（tools/p14_s5_check.py 会带上）。
+neuron-kv = []
+# P16-1：连接稀疏的**存储格式**（core/src/conn_sparse.rs）—— CSR 邻接表
+# （conn_offsets / conn_src / conn_weights）+ 读写器 + 硬守卫。
+#
+# 为什么默认关闭、且要单独一个 feature（与 neuron-kv 同一条理由）：
+#   它是**装载期/构建期**代码 —— 解析与校验只发生一次，稳态前向由
+#   原则 2 的算子（另一个任务）负责。无条件链进推理引擎会让
+#   「引擎体积」这个指标去度量存储校验脚手架，那会让预算失真。
+#
+# 与 neuron-kv **正交**：本模块刻意不依赖 neuron-kv（同形的 .vmb
+#   section 描述符逻辑复制了约 40 行，而不是借用 neuron_kv 的函数），
+#   这样 --features conn-sparse 单独开也能编译通过。
+#
+# 需要它时：--features conn-sparse（tools/p16_conn_format.py 的交叉校验会带上）。
+conn-sparse = ["vmlm-ops/conn-sparse"]
+# P17-P3：BPE 分词器（core/src/bpe.rs）—— 外部 mmap 词表 + 纯 Rust 手写编解码
+# + 硬守卫。
+#
+# 为什么默认关闭、且要单独一个 feature（与 neuron-kv / conn-sparse 同一条理由）：
+#   它是**装载期/构建期**代码 —— 词表 mmap、展开成 piece 字节表、逐项校验都
+#   只发生一次；稳态路径由调用方按 id 取字节。无条件链进推理引擎会让
+#   「引擎体积」这个指标去度量词表校验脚手架，那会让预算失真。
+#
+# 与 neuron-kv / conn-sparse **正交**：本模块刻意不依赖任何其它模块
+#   （print/exit/mmap_file_ro 来自 lib.rs，是 lib 自身的），所以
+#   --features bpe 单独开也必须是能编译过的 —— 这一点由
+#   tools/p17_bpe_xcheck.py 用一个 default-features=false 的隔离 crate 实测。
+#
+# 需要它时：--features bpe。
+bpe = []
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

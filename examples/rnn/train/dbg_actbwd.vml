@@ -1,0 +1,19 @@
+; A2 debug: isolate ACT_BWD(sigmoid) against an analytic expectation.
+;
+; r = sigmoid(rpre)        rpre = [1,4] known
+; dr = [1,4] known (upstream)
+; expected drpre[i] = dr[i] * r[i] * (1 - r[i])
+;
+; If VMLM's ACT_BWD disagrees with that, the sigmoid path in the RNN is the bug.
+SHAPE   rpre,  1, 4
+SHAPE   r,     1, 4
+SHAPE   dr,    1, 4
+SHAPE   drpre, 1, 4
+
+COPY    rpre, rpre_in
+ACT     r, rpre, sigmoid
+COPY    dr, dr_in
+ACT_BWD drpre, dr, rpre, sigmoid
+PRINT   drpre
+
+HALT

@@ -1,0 +1,56 @@
+; P6: 动态稀疏 FFN（sparse_dyn 的神经元级 top-k 门控）
+;
+; 这是 sparse_dyn 的 FFN 核心，用 VMLM 指令集表达：
+;   h  = x · W1^T + b1                  [T,F]
+;   s  = |h|                            （逐元素绝对值）
+;   τ  = 每行第 k 大的 s                ← TOPK_THRESH，**不排序**，只取阈值
+;   m  = (s >= τ)                       （逐行广播比较）
+;   h  = h ⊙ m
+;   h  = GELU(h)
+;   y  = h · W2^T + b2
+;
+; 关键不变量：每行恰好保留 k = floor(F·top_ratio) 个非零，
+; **稀疏率恒等于 top_ratio**（sparse_dyn 刻意做的硬保证）。
+;
+; 维度：T=4, D=16, F=32, k=8 (top_ratio=0.25)
+
+.section forward
+    SHAPE       x,     4, 16
+    SHAPE       h,     4, 32
+    SHAPE       ah,    4, 32
+    SHAPE       tau,   4, 1
+    SHAPE       mask,  4, 32
+    SHAPE       hs,    4, 32
+    SHAPE       g,     4, 32
+    SHAPE       y,     4, 16
+
+    ; ---- h = x · W1^T + b1 ----
+    GEMM        h, x, W1
+    BIAS        h, b1
+
+    ; ---- s = |h| ----
+    ; ABS 用「h 与 -h 取较大者」表达：先取负，再 MAX
+    NEG         ah, h
+    EWMAX       ah, h, ah
+
+    ; ---- τ = 每行第 k 大（k 编在指令的 imm 里）----
+    TOPK_THRESH tau, ah, k=8
+
+    ; ---- m = (s >= τ) 逐行广播 ----
+    ; GE 用「s < τ → 0，否则 1」表达：先算 s - τ，再取符号
+    ; 为保持指令集简单，这里用 SUB + 比较内核
+    SHAPE       diff, 4, 32
+    EWSUB       diff, ah, tau
+    GEMASK      mask, diff
+
+    ; ---- h = h ⊙ m ----
+    MASK_MUL    hs, h, mask
+
+    ; ---- GELU ----
+    ACT         g, hs, gelu
+
+    ; ---- y = g · W2^T + b2 ----
+    GEMM        y, g, W2
+    BIAS        y, b2
+    PRINT       y
+    HALT

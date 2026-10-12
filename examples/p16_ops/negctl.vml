@@ -1,0 +1,4 @@
+SHAPE z, 2, 1
+SHAPE a, 2, 1
+    LOADK z, a
+    HALT

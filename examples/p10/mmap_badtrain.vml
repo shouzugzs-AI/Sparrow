@@ -1,0 +1,6 @@
+SHAPE ctr, 1, 1
+SHAPE W, 64, 32
+SHAPE gW, 64, 32
+SHAPE lr, 1, 5
+ADAMW W, gW, lr
+HALT

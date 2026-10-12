@@ -1,0 +1,10 @@
+[package]
+name = "pt2vmb"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "pt2vmb"
+path = "src/main.rs"

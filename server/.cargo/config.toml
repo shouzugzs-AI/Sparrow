@@ -1,0 +1,53 @@
+# ============================================================================
+# THIS FILE IS READ ONLY WHEN CARGO IS INVOKED FROM INSIDE `server/`.
+# ============================================================================
+#
+# Cargo reads `.cargo/config.toml` starting at the PROCESS WORKING DIRECTORY and
+# walking up. It does NOT merge a config found further down the tree. So:
+#
+#   cwd = <repo>/server   ->  THIS file is read (plus the root's, merged
+#                                    not overridden -- see the warning below)
+#   cwd = <repo>          ->  root/.cargo/config.toml ONLY; this file is
+#                                    NOT read at all
+#
+# This is not a guess. It was measured on this tree, in the other direction:
+# building the ENGINE from the workspace root fails with
+#
+#     error: linking with `link.exe` failed: exit code: 1561
+#     LINK : fatal error LNK1561: 必须定义入口点
+#
+# because the engine's link flags live in `runtime/.cargo/config.toml` and are
+# simply not seen from the root. That failure is reproduced and captured by
+# `tools/p17_http_size.py`, section 0.
+#
+# The consequence for THIS file: it is dead configuration for the command
+# `cargo build --release -p vmlm-server` run from the root. Rather than leave a
+# file that looks authoritative and is not, the build is VERIFIED from both
+# directories and both produce the same binaries -- see
+# `tools/p17_http_config_check.py`, which asserts it and prints both sha256s.
+#
+# ---------------------------------------------------------------------------
+# ⚠️ DO NOT ADD THE ENGINE'S LINK FLAGS HERE.
+# ---------------------------------------------------------------------------
+# `runtime/.cargo/config.toml` sets:
+#     -C link-arg=/ENTRY:mainCRTStartup
+#     -C link-arg=/SUBSYSTEM:CONSOLE
+#     -C link-arg=/NODEFAULTLIB
+#     -C link-arg=kernel32.lib
+#
+# Those are for a `no_std`, CRT-free executable. `vmlm-server` and `vmlm-cli` are
+# ordinary `std` programs. `/NODEFAULTLIB` removes the C runtime that std's
+# runtime needs and the link fails with a wall of unresolved symbols
+# (`_beginthreadex`, `_errno`, ...). The distinction the task draws --
+# "server is a standalone exe, std is allowed" -- is enforced HERE, by this file
+# NOT carrying those flags.
+#
+# The only flag that legitimately applies to both is the CPU baseline, and it is
+# repeated (not required) so that the two build directories produce identical
+# codegen. Note that cargo MERGES target tables from the configs it finds, and
+# `rustflags` is an ARRAY that is MERGED BY CONCATENATION across config files --
+# so this line plus the root's line yields the flag TWICE. That is harmless
+# (it compiles the same code) but it is stated here so the next person reading
+# `cargo build -vv` does not think something is wrong.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+avx2,+fma"]

@@ -1,0 +1,80 @@
+; P5: 小 Transformer 前向（多头注意力 + 因果掩码 + ReLU FFN）
+;
+; 结构对应 sparse_dyn 的 block（去掉动态稀疏）：
+;   x = tok_emb + pos_emb
+;   x = x + Attn(LN1(x))
+;   x = x + FFN(LN2(x))
+;   logits = LN_f(x) · E^T
+;
+; 维度：T=8, D=16, NH=2 头, HD=8, F=32, V=4
+;
+; 约定（与 P4 一致）：
+;   GEMM  C[M,N] = A[M,K]·B[N,K]^T        （nn.Linear 权重 [N,K]）
+;   SLICE dst, src, startCol, width        （列切片，行数不变）
+;   WRITECOL dst, src, startCol            （把 src 写进 dst 的列区间）
+;   SOFTMAX 沿行；causal 打开三角掩码
+;   LN 按 src 的行宽归一化
+;
+; 形状：除 SHAPE 显式声明外，汇编器会自动从指令语义推断（省去逐个声明）
+
+.section forward
+    ; ---- 输入 ----
+    SHAPE       x,        8, 16
+    COPY        x, emb
+    EWADD       x, x, pos
+
+    ; ============ 多头注意力 ============
+    LN          xd, x, ln1_g, ln1_b
+
+    ; qkv = xd · Wqkv^T + bqkv   [8,48]
+    GEMM        qkv, xd, Wqkv
+    BIAS        qkv, bqkv
+
+    ; ---- 拆 Q/K/V（各 16 列）----
+    SLICE       qc, qkv, 0,  16
+    SLICE       kc, qkv, 16, 16
+    SLICE       vc, qkv, 32, 16
+
+    ; ---- head 0（列 0..7）----
+    SLICE       qh, qc, 0, 8
+    SLICE       kh, kc, 0, 8
+    SLICE       vh, vc, 0, 8
+    GEMM        att, qh, kh
+    SCALE       att, att, inv_sqrt_hd
+    SOFTMAX     att, att, causal
+    ; yh = att · vh —— 注意这里是 NN（不转置 B），不是 NT：
+    ; 注意力是 att[T,T] @ vh[T,HD]，而 GEMM 默认按 [N,K] 权重转置 B。
+    ; 用 nn=1 切到 NN 路径（B 按 [K,N] 解释）。
+    GEMM        yh, att, vh, nn
+    COPY        yt, yh
+
+    ; ---- head 1（列 8..15）----
+    SLICE       qh, qc, 8, 8
+    SLICE       kh, kc, 8, 8
+    SLICE       vh, vc, 8, 8
+    GEMM        att, qh, kh
+    SCALE       att, att, inv_sqrt_hd
+    SOFTMAX     att, att, causal
+    GEMM        yh, att, vh, nn
+    ; 拼回：y = [head0 | head1]，两半都是 8x8
+    CONCAT      y, yt, yh
+
+    ; ---- 输出投影 + 残差 ----
+    GEMM        proj, y, Wproj
+    BIAS        proj, bproj
+    EWADD       x, x, proj
+
+    ; ============ FFN ============
+    LN          xh, x, ln2_g, ln2_b
+    GEMM        h, xh, W1
+    BIAS        h, b1
+    ACT         h, h, relu
+    GEMM        ff, h, W2
+    BIAS        ff, b2
+    EWADD       x, x, ff
+
+    ; ============ 输出头 ============
+    LN          xf, x, lnf_g, lnf_b
+    GEMM        logits, xf, E
+    PRINT       logits
+    HALT

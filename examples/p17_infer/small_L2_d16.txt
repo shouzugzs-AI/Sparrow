@@ -1,0 +1,61 @@
+﻿===== P17 P1 inference: 24-layer sparse full forward =====
+layers=2 d=16 k0=8 k=3 seq=3 dump=1
+QPC frequency = 10000000 Hz (driver-side kernel32 binding)
+tokens = [45, 50, 25]
+
+===== mechanism-2 identity (skip == no-skip, at k=k0) =====
+sparse(k=3) macs=288  full(k=k0) macs=768  reduction=2.67x  [these MUST differ: different functions]
+identity check: sparse_forward(k=k0) vs explicit dense double loop, per-layer
+bitwise diff = 0 / 48   max|diff| = 0.000000000e0   first_bad_layer = -1
+[PASS] IDENTITY (k=k0) sparse skip-path == explicit dense loop, bitwise  bad=0  max|diff|=0.000000000e0 first_bad_layer=-1 (skipping zero/unselected conns must be an identity)
+
+===== RATIOS (both required, neither alone) =====
+skip_rate       = 0.625000   (macs=288 / full=768 , reduction 2.67x)
+union_fraction  = 1.000000   (|union|=16 / d=16)  [24 layers x 3 tokens]
+union_fraction_L0 = 1.000000  (|union|=16 / d=16)  [layer 0 only, all tokens]
+activated connections counted = 288 (over 6 layer-token pairs, expected 288 = d*k*L*T)
+[PASS] RATIO skip_rate > 0 (mechanism 2 active)  skip_rate=0.625000
+[PASS] RATIO union_fraction reported (no claim of low value)  union_fraction=1.000000
+[PASS] RATIO can-fail: L0 union(1 token) <= union(all tokens)  union_1tok=14 union_alltok=16
+[PASS] RATIO can-fail: L0 union(1 token) <= d*k bound  union_1tok=14 bound=48
+[PASS] RATIO can-fail: k==k0 => zero skip (macs == d*k0)  bad=0  macs=128 d*k0=128
+[PASS] PERTURB-P1 selected weight perturbed => output MUST change  conn=(0,0) bit_diffs=1 max|diff|=1.764148474e-4
+[PASS] PERTURB-P1b restore => bitwise identical again (no state leak)  bad=0  restored_bits_differing=0
+[PASS] PERTURB-P2 UNSELECTED weight perturbed => output must NOT change (negative control)  bad=0  conn=(0,1) bit_diffs=0 max|diff|=0.000000000e0 (this is the P16 pitfall, now asserted)
+  perturbation summary: selected=(0,0) changed_bits=1 | unselected=(0,1) changed_bits=0
+dumped ref bundle -> examples/p17_infer/dump_L2_d16_k08_k3_s3.bin
+PRNG cross-check: neuron_seed(0,0)=4245456706 neuron_conn_src(0,0,0,16, 8)=8 neuron_rand(12345,7)=2955612665
+
+===== B5 active-only KV cache =====
+--- granularity N (neuron): R2 as literally written ---
+neurons (layer 0): total=16 active=16 inactive=0
+inactive sampled over ALL 6 layer-token pairs: 0 of 96 neuron-slots
+slots: compact=16 full=16 ratio=1.000000  bytes: compact=128 full=128 saved=0.00%
+writes to INACTIVE neurons: active-only=0  (full-write total=16)
+--- granularity C (connection): the satisfiable form ---
+activated connections (layer 0, 1 token) = 48 of 128  ratio=0.375000
+sparse KV slots: compact=48 full=128 ratio=0.375000  bytes: compact=384 full=1024 saved=62.50%
+B5 elapsed: 0.043500 ms (QPC)
+[N/A (proved vacuous)] B5-R2 neuron-granularity: store only ACTIVE neurons' KV  PROOF: row_topk picks min(k,k0)>=1 per neuron => every neuron has >=1 active conn => inactive === 0. MEASURED: inactive=0 of 96 neuron-slots over 6 layer-token pairs; saving = 0.00% (theorem, not a result). Needs re-specification, not a code fix.
+[PASS] B5-N can-fail: k=0 => ALL neurons inactive (counter is live, not dead)  inactive_at_k=0 = 16 (expected d=16) -- this makes the inactive==0 measurement non-vacuous
+[PASS] B5-C1 connection-granularity: writes == d*k (only activated conns)  bad=0  writes=48 d*k=48
+[PASS] B5-C2 connection-granularity: compact < full  compact=48 full=128 ratio=0.375000 saved=62.50%
+[PASS] B5-C3 can-fail: k==k0 => connection saving is exactly 0  bad=0  writes=128 full=128 (must be equal)
+
+===== EXPLICIT CONCLUSION (do not paraphrase loosely) =====
+1. B5 as literally specified (only ACTIVE NEURONS' KV) has saving = 0.00%.
+   This is a THEOREM (row_topk picks >=1 conn per neuron), not a measurement result.
+2. B5's satisfiable form is 'store only the KV of TOUCHED SOURCE neurons' (= union).
+   MEASURED union_fraction = 1.000000 => the touched-source set is essentially ALL of d.
+   => B5 in THIS architecture produces NO STORAGE SAVING. It must not be reported as a win.
+3. What IS saved is COMPUTE / TRANSFER at CONNECTION granularity: ratio 48/128 = 0.375000.
+   That is the SAME claim as skip_rate = 0.625000. It says NOTHING about memory.
+4. Consequence for the requirement text: R2 needs re-specification (neuron -> connection
+   granularity), because at neuron granularity the premise is unsatisfiable.
+
+===== TIMING (QPC, driver-side binding) =====
+build (2 layers, alloc+init+attn weights): 0.021 ms
+full forward (2 layers x 3 tokens): 0.067 ms  (0.011 ms/layer-token)
+
+===== checks=13 fail=0 na_proved_vacuous=1 =====
+NOTE: the 1 N/A item(s) are NOT passes -- see the PROOF lines above.

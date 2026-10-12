@@ -1,0 +1,480 @@
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.
+VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。
+The engine is no_std, links against kernel32 directly, and carries no C runtime.
+Sparse connections: each neuron keeps only its top twenty connections.
+连接稀疏把每个神经元的连接数限制在 k0 = 20，激活时只计算存在的连接。
+Byte pair encoding starts from bytes and merges the most frequent pair.
+字节对编码从字节出发，反复合并出现次数最多的一对相邻单元。
+The vocabulary is memory mapped read-only, so training cannot corrupt it.
+词表放在外部文件里并只读映射，因此不占引擎字节，也不会被就地写坏。
+Round trip means text to token ids and back to exactly the same bytes.
+Guard messages print the specific numbers, never a bare boolean.
+This project hard fails on illegal input instead of degrading silently.
+token 1 2 3 4 5 6 7 8 9 0 ids logits decode encode merge pair frequency.

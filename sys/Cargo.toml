@@ -1,0 +1,15 @@
+[package]
+name = "vmlm-sys"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+# std 版常驻线程池（trainer 启用；引擎不启用 ⇒ 保持 no_std）
+thread-std = []
+
+[dependencies]

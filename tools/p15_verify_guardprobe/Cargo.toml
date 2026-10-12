@@ -1,0 +1,16 @@
+[package]
+name = "p15-verify-guardprobe"
+version = "0.1.0"
+edition = "2021"
+
+# VERIFIER-OWNED probe. It depends on the REAL core crate with the S5 feature
+# ON, so the guards under test are the shipped ones. It is never part of a
+# deliverable binary and never linked into the engine.
+[dependencies]
+vmlm-core = { path = "../../core", features = ["neuron-kv"] }
+
+[[bin]]
+name = "p15-verify-guardprobe"
+path = "src/main.rs"
+
+[workspace]

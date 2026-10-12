@@ -1,0 +1,273 @@
+{
+  "task": "P17 prerequisite",
+  "claim": "SEC_CONN_SPARSE is wired into core/src/format.rs's tag table; a production-shaped .vmb can carry it and the shipped loader accepts tag 3 / hard-fails tag 0,1,2,4.",
+  "tag_table": {
+    "0": "reserved -- artifact carries no such section",
+    "1": "SEC_NEURON_KV (S5)",
+    "2": "UNASSIGNED -- must be rejected",
+    "3": "SEC_CONN_SPARSE (P17 wiring)",
+    "4": "UNKNOWN -- must be rejected"
+  },
+  "measured_shipped_values": {
+    "format::SEC_NEURON_KV": 1,
+    "format::SEC_CONN_SPARSE": 3,
+    "conn_sparse::SEC_CONN_SPARSE": 3,
+    "format::MAGIC": "0x4d4c4d56",
+    "DESCR_OFF": 32,
+    "VMB_HDR": 32,
+    "VMB_HDR_WITH_DESCR": 44,
+    "CS_MAGIC": "0x31525343"
+  },
+  "production_artifact": {
+    "path": "examples/p17_conn/prod_conn.vmb",
+    "shape": {
+      "n_neurons": 96,
+      "k0": 7,
+      "layer": 0
+    },
+    "vmb_bytes": 5828,
+    "descriptor": {
+      "tag": 3,
+      "off": 44,
+      "len": 5784
+    },
+    "text_off": 44,
+    "fnv1a64": "73f72aabbe914976",
+    "load_roundtrip": {
+      "src_mismatch": "0",
+      "weight_bit_mismatch": "0"
+    }
+  },
+  "must_fail_controls": [
+    {
+      "tag": 2,
+      "label": "tag 2 = UNASSIGNED (the 'someone shipped a tag nobody claimed' case)",
+      "exit": 9,
+      "messages": [
+        "CS: unexpected section tag"
+      ]
+    },
+    {
+      "tag": 4,
+      "label": "tag 4 = UNKNOWN/next (the 'off-by-one in an emitter' case)",
+      "exit": 9,
+      "messages": [
+        "CS: unexpected section tag"
+      ]
+    },
+    {
+      "tag": 1,
+      "label": "tag 1 = SEC_NEURON_KV (a REAL tag, but the WRONG kind of section)",
+      "exit": 9,
+      "messages": [
+        "CS: unexpected section tag"
+      ]
+    },
+    {
+      "tag": 0,
+      "label": "tag 0 = 'no section' while text_off still says 44 (contradictory artifact)",
+      "exit": 9,
+      "messages": [
+        "CS: artifact has no conn_sparse section"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "format::SEC_NEURON_KV == 1 (S5 section tag unchanged)",
+      "pass": true,
+      "detail": "measured 1"
+    },
+    {
+      "name": "format::SEC_CONN_SPARSE == 3 (the P17 wiring)",
+      "pass": true,
+      "detail": "measured 3"
+    },
+    {
+      "name": "format::MAGIC == 0x4D4C4D56 ('VMLM') -- this crate IS vmlm-core",
+      "pass": true,
+      "detail": "measured 0x4d4c4d56"
+    },
+    {
+      "name": "conn_sparse::SEC_CONN_SPARSE == format::SEC_CONN_SPARSE (the two declarations AGREE -- the P16 gap was that only one existed)",
+      "pass": true,
+      "detail": "module=3 format=3"
+    },
+    {
+      "name": "DRIFT GUARD: the tag table's value and the loader's comparison constant are identical -- asserted so that a future edit to format.rs ALONE cannot silently desynchronise them",
+      "pass": true,
+      "detail": "format=3 module=3 (delta=0)"
+    },
+    {
+      "name": "DRIFT GUARD predicate self-test: 6 hand-picked cases incl. the unparseable-is-not-agreement case",
+      "pass": true,
+      "detail": "failures=none"
+    },
+    {
+      "name": "descriptor contract: DESCR_OFF == VMB_HDR == 32, VMB_HDR_WITH_DESCR == 44",
+      "pass": true,
+      "detail": "DESCR_OFF=32 VMB_HDR=32 WITH_DESCR=44"
+    },
+    {
+      "name": "no tag collides with 0 (reserved = 'artifact has no such section')",
+      "pass": true,
+      "detail": "neuron_kv=1 conn_sparse=3"
+    },
+    {
+      "name": "tag 2 is NOT taken by conn_sparse (it stays unassigned)",
+      "pass": true,
+      "detail": "conn_sparse=3"
+    },
+    {
+      "name": "artifact size == 44 B header+descriptor + section_bytes",
+      "pass": true,
+      "detail": "on_disk=5828 44+sec=5828 reported=5828"
+    },
+    {
+      "name": "descriptor on disk really says tag=3 (read by an INDEPENDENT Python struct.unpack, not by the Rust loader)",
+      "pass": true,
+      "detail": "bytes[32..36] = 3"
+    },
+    {
+      "name": "descriptor off == 44 and len == section_bytes",
+      "pass": true,
+      "detail": "off=44 len=5784 section_bytes=5784"
+    },
+    {
+      "name": "text_off == 44 -- the ONLY correct 'a descriptor is present' predicate (tag==0 misjudges the no-section case)",
+      "pass": true,
+      "detail": "text_off=44"
+    },
+    {
+      "name": "artifact magic on disk == 0x4D4C4D56",
+      "pass": true,
+      "detail": "0x4d4c4d56"
+    },
+    {
+      "name": "section magic at off=44 is 0x31525343 ('CSR1')",
+      "pass": true,
+      "detail": "0x31525343"
+    },
+    {
+      "name": "load_validate() exited 0 on the production artifact",
+      "pass": true,
+      "detail": "rc=0"
+    },
+    {
+      "name": "loader reports N_NEURONS=96",
+      "pass": true,
+      "detail": "got 96"
+    },
+    {
+      "name": "loader reports K0=7",
+      "pass": true,
+      "detail": "got 7"
+    },
+    {
+      "name": "loader reports TOTAL_PAIRS == n*k0 == 672",
+      "pass": true,
+      "detail": "got 672"
+    },
+    {
+      "name": "loader resolved the section to offset 44 in the file",
+      "pass": true,
+      "detail": "got 44"
+    },
+    {
+      "name": "loader AGREES with the descriptor bytes read independently (DISK_TAG=3 DISK_LEN=5784)",
+      "pass": true,
+      "detail": "DISK_TAG=3 DISK_LEN=5784 (want 3, 5784)"
+    },
+    {
+      "name": "round-trip through the descriptor path is bit-exact: SRC_MISMATCH=0 and WEIGHT_BIT_MISMATCH=0",
+      "pass": true,
+      "detail": "src=0 w=0"
+    },
+    {
+      "name": "MUST-FAIL tag=2 exits 9 with the specific message 'unexpected section tag'",
+      "pass": true,
+      "detail": "exit=9 msg=['CS: unexpected section tag']"
+    },
+    {
+      "name": "MUST-FAIL tag=2 produced NO layout (loader did not silently accept it)",
+      "pass": true,
+      "detail": "rc=9"
+    },
+    {
+      "name": "MUST-FAIL tag=4 exits 9 with the specific message 'unexpected section tag'",
+      "pass": true,
+      "detail": "exit=9 msg=['CS: unexpected section tag']"
+    },
+    {
+      "name": "MUST-FAIL tag=4 produced NO layout (loader did not silently accept it)",
+      "pass": true,
+      "detail": "rc=9"
+    },
+    {
+      "name": "MUST-FAIL tag=1 exits 9 with the specific message 'unexpected section tag'",
+      "pass": true,
+      "detail": "exit=9 msg=['CS: unexpected section tag']"
+    },
+    {
+      "name": "MUST-FAIL tag=1 produced NO layout (loader did not silently accept it)",
+      "pass": true,
+      "detail": "rc=9"
+    },
+    {
+      "name": "MUST-FAIL tag=0 exits 9 with the specific message 'has no conn_sparse section'",
+      "pass": true,
+      "detail": "exit=9 msg=['CS: artifact has no conn_sparse section']"
+    },
+    {
+      "name": "MUST-FAIL tag=0 produced NO layout (loader did not silently accept it)",
+      "pass": true,
+      "detail": "rc=9"
+    },
+    {
+      "name": "MUST-FAIL is deterministic: tag=2 -> exit 9 then exit 9, identical messages",
+      "pass": true,
+      "detail": "rc_a=9 rc_b=9"
+    },
+    {
+      "name": "CAN-FAIL: with format.rs = 9 the two declarations MISMATCH (so the real-tree PASS on this same assertion is load-bearing)",
+      "pass": true,
+      "detail": "format=9 module=3"
+    },
+    {
+      "name": "CAN-FAIL: the mutant crate really EMITS tag=9 (so the next two checks are not vacuous)",
+      "pass": true,
+      "detail": "descriptor tag on disk = 9"
+    },
+    {
+      "name": "CAN-FAIL: the REAL loader REJECTS a tag-9 artifact with exit 9 'unexpected section tag'",
+      "pass": true,
+      "detail": "exit=9"
+    },
+    {
+      "name": "CAN-FAIL: the tag the loader accepts is the MODULE constant (mutant format=9 therefore does NOT change what the loader accepts) -- measured, not assumed",
+      "pass": true,
+      "detail": "mutant load exit=9"
+    },
+    {
+      "name": "CAN-FAIL (DRIFT GUARD): the mutant tree makes the format-vs-module drift predicate return NOT-AGREE, i.e. the guard in section 1 would have FAILED here",
+      "pass": true,
+      "detail": "format=9 module=3 -> agrees=False"
+    },
+    {
+      "name": "CAN-FAIL (DRIFT GUARD): the same predicate says AGREE for the shipped tree, so it is not hardwired to False",
+      "pass": true,
+      "detail": "shipped format=3 module=3"
+    },
+    {
+      "name": "MEASURED LIMIT: no caller outside core/src/{format,conn_sparse}.rs consumes SEC_CONN_SPARSE or conn_sparse's load path",
+      "pass": true,
+      "detail": "qualified users found = 0 []"
+    }
+  ],
+  "honest_limits": [
+    "This wires the TAG only. No caller outside core/src/{format,conn_sparse}.rs consumes SEC_CONN_SPARSE or the conn_sparse load path (measured: 0 qualified user files), so the engine does not auto-load a conn section at startup.",
+    "MEASURED STRUCTURAL FACT: conn_sparse.rs's own loader guard compares against its MODULE constant (conn_sparse.rs line 866, `if tag != SEC_CONN_SPARSE`), not against format::SEC_CONN_SPARSE. The two now hold the same value, so nothing is currently wrong; but a future edit to format.rs alone would NOT change what the loader accepts. Reported because it is a real coupling gap, and this tool's first can-fail assertion wrongly assumed otherwise.",
+    "The section content is P16's deterministic placeholder distribution, NOT trained weights.",
+    "The artifact is a production-SHAPED .vmb (real header, real descriptor, real section) but it is not emitted by a model converter; no converter emits conn sections yet."
+  ]
+}

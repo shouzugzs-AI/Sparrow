@@ -1,0 +1,99 @@
+
+==============================================================================
+P17-P4 PACKAGING OPTIONS -- server / cli / both
+==============================================================================
+root   = <repo>
+crate  = vmlm-server  (bins: vmlm-server, vmlm-cli; lib: vmlm_server)
+
+Both binaries link the SAME library, by design: json.rs, http.rs,
+auth.rs, engine.rs, vmb.rs, tokenizer.rs, chat.rs live in the lib so
+the CLI and the server cannot drift apart in their JSON or validation
+behaviour. Consequence to state plainly: `--bin vmlm-cli` still
+compiles the whole library, so 'cli only' is not a smaller build --
+it is a build that produces one executable instead of two.
+
+==============================================================================
+OPTION: server only
+==============================================================================
+  $ cargo build --release -p vmlm-server --target x86_64-pc-windows-msvc --target-dir <repo>/target/t_p17_pkg_server_only --bin vmlm-server
+  exit code = 0
+  executables produced: ['vmlm-server.exe']
+    vmlm-server.exe      421888 B  7cb2729a6e86f4abe91de21a7478fbc4..
+
+  (vmlm-cli not in this option; nothing to execute)
+
+  executing: vmlm-server.exe --help
+    | vmlm-server -- VMLM HTTP service (P17-P4)
+    | USAGE:
+    |     vmlm-server --token <TOKEN> [OPTIONS]
+  exit code = 0
+    -> PASS: usage printed
+
+  executing: vmlm-server.exe --port 9   (no token)
+    | [vmlm-server] error: refusing to start without a bearer token.
+    |   Pass --token <TOKEN> (or set VMLM_TOKEN), or pass --allow-anonymous explicitly if you really want an open server.
+    |   There is deliberately no implicit default: a server that silently runs without auth makes the 401 criterion untestable.
+  exit code = 3 (documented: 3)
+    -> PASS: refuses to start unauthenticated
+
+==============================================================================
+OPTION: cli only
+==============================================================================
+  $ cargo build --release -p vmlm-server --target x86_64-pc-windows-msvc --target-dir <repo>/target/t_p17_pkg_cli_only --bin vmlm-cli
+  exit code = 0
+  executables produced: ['vmlm-cli.exe']
+    vmlm-cli.exe         394240 B  69adb98f7a7406719ab4b0ce6cb13381..
+
+  executing: vmlm-cli.exe --selftest
+    | [PASS] validate rejects stream:true  `stream: true` is not implemented by this server; send `"stream": false` or omit the field
+    | [PASS] tokenizer round-trips exactly  6 tokens
+    | [PASS] auth rejects a missing header  None -> Err
+    | [PASS] auth accepts the right token  Bearer t -> Ok
+    | 
+    | selftest: 14 PASS, 0 FAIL
+  exit code = 0
+    -> PASS: the CLI's offline criteria (JSON strictness,
+       validation, tokenizer round-trip, auth) all pass
+
+  (vmlm-server not in this option; nothing to execute)
+
+==============================================================================
+OPTION: both
+==============================================================================
+  $ cargo build --release -p vmlm-server --target x86_64-pc-windows-msvc --target-dir <repo>/target/t_p17_pkg_both
+  exit code = 0
+  executables produced: ['vmlm-cli.exe', 'vmlm-server.exe']
+    vmlm-cli.exe         394240 B  b5a8a96301bce5cacfb1436b5769a1ff..
+    vmlm-server.exe      421888 B  f0d0be1880528be04909accd00c89c82..
+
+  executing: vmlm-cli.exe --selftest
+    | [PASS] validate rejects stream:true  `stream: true` is not implemented by this server; send `"stream": false` or omit the field
+    | [PASS] tokenizer round-trips exactly  6 tokens
+    | [PASS] auth rejects a missing header  None -> Err
+    | [PASS] auth accepts the right token  Bearer t -> Ok
+    | 
+    | selftest: 14 PASS, 0 FAIL
+  exit code = 0
+    -> PASS: the CLI's offline criteria (JSON strictness,
+       validation, tokenizer round-trip, auth) all pass
+
+  executing: vmlm-server.exe --help
+    | vmlm-server -- VMLM HTTP service (P17-P4)
+    | USAGE:
+    |     vmlm-server --token <TOKEN> [OPTIONS]
+  exit code = 0
+    -> PASS: usage printed
+
+  executing: vmlm-server.exe --port 9   (no token)
+    | [vmlm-server] error: refusing to start without a bearer token.
+    |   Pass --token <TOKEN> (or set VMLM_TOKEN), or pass --allow-anonymous explicitly if you really want an open server.
+    |   There is deliberately no implicit default: a server that silently runs without auth makes the 401 criterion untestable.
+  exit code = 3 (documented: 3)
+    -> PASS: refuses to start unauthenticated
+
+==============================================================================
+SUMMARY
+==============================================================================
+  options checked: 3
+  failed checks  : 0
+  [PASS]

@@ -1,0 +1,67 @@
+[package]
+name = "vmlm-tests"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vmlm-core = { path = "../core" }
+
+# 成员 D（性能）专用：GEMM 内核微基准，只测内核本身、不含 VM exec 开销。
+# 独立 [[bin]]，不影响 vmlm-tests 默认二进制。
+[[bin]]
+name = "vmlm-bench"
+path = "src/bench.rs"
+
+# 成员 D 专用：packed GEMM 的对齐/边界崩溃回归（256³ 访问违例的护栏）。
+[[bin]]
+name = "vmlm-packbench"
+path = "src/packbench.rs"
+
+# Lead 专用：不依赖成员 A 自检的独立反向算子验证（交叉核对）。
+[[bin]]
+name = "vmlm-lead-verify"
+path = "src/lead_verify.rs"
+
+# Lead 专用：直接调用真引擎核对 exp_f 精度（不依赖 Python 复刻）。
+[[bin]]
+name = "vmlm-expcheck"
+path = "src/expcheck.rs"
+
+# P11 优化开关基准：逐项 A/B 测「代数消元」的真实收益 + 数值误差。
+# 为什么要单独一个 bin，而不是扩 vmlm-bench：
+#   vmlm-bench 测内核本身；本基准测**真实 Transformer 一层的端到端时间**，
+#   因为「消元」的收益是减少指令数/内存流量，只有层级口径才看得见。
+#   而且它必须能**逐项开关**（计划 §10：禁止乘法叠加）。
+[[bin]]
+name = "vmlm-optbench"
+path = "src/optbench.rs"
+
+# P11 诊断：定量回答「为什么消元几乎无收益」。
+# 计划书假设瓶颈在 FMA 端口（辅助指令占了它），本机实测在内存/load 端口。
+# 这个 bin 用三个可检验的假设把差异量化出来，而不是靠争论。
+[[bin]]
+name = "vmlm-why"
+path = "src/why.rs"
+
+# P11 Q1/Q3：INT8 / 4bit 量化 GEMM 的实测。
+# vmlm-why 证明 GEMM 是权重字节流量主导，所以量化是**唯一**被诊断指向
+# 会有效的方向。这个 bin 实测它到底快多少、精度损失多少。
+[[bin]]
+name = "vmlm-quant"
+path = "src/quant.rs"
+
+# P12：bf16 权重 GEMM 的实测。
+# 为什么先做这个再改引擎：MiniCPM 的权重是 bf16，f32 常量池需要 4.32 GB
+# 私有提交，而 bf16（mmap 原地）只要 2.16 GB 文件支持页。
+# 但「原地方案是否会变慢」必须先测，不能凭预期改引擎。
+[[bin]]
+name = "vmlm-bf16"
+path = "src/bf16.rs"
+[[bin]]
+name = "vmlm-shufprobe"
+path = "src/shufprobe.rs"
+[[bin]]
+name = "vmlm-bf16diag"
+path = "src/bf16diag.rs"

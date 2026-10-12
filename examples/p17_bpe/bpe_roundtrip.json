@@ -1,0 +1,71 @@
+{
+ "text": "VMLM 是一个把 Transformer 权重预先汇编成指令流的推理引擎。 The engine is no_std and links against kernel32 directly.",
+ "n_bytes": 136,
+ "sha256": "481c29d62d9ab0614435dfdf924085dc1bd1496abe51c4d550f78e1a25b9416a",
+ "n_ids": 52,
+ "pass": 11,
+ "fail": 0,
+ "unproven": 1,
+ "results": [
+  {
+   "name": "stage A: Rust encoder produced ids",
+   "ok": true,
+   "detail": "n_ids=52"
+  },
+  {
+   "name": "stage A: Rust ids == Python ids (independent encoders)",
+   "ok": true,
+   "detail": "rust=52 python=52, equal=True"
+  },
+  {
+   "name": "stage B1: identity model passes the ids through unchanged",
+   "ok": true,
+   "detail": "n=52"
+  },
+  {
+   "name": "stage B2: ids -> placeholder logits -> argmax -> ids runs",
+   "ok": true,
+   "detail": "24 greedy steps, first 8 = [614, 336, 631, 566, 378, 870, 311, 850]"
+  },
+  {
+   "name": "stage B2: generated ids decode without a guard firing",
+   "ok": true,
+   "detail": "rc=0 "
+  },
+  {
+   "name": "stage B2: generated text == input text",
+   "ok": null,
+   "detail": "the logits are a seeded placeholder, not a model, so the decoded text is NOT expected to match. Reported rather than asserted -- this task owns the tokenizer, not the model."
+  },
+  {
+   "name": "stage C: Rust round trip is byte-identical",
+   "ok": true,
+   "detail": "n_bytes=136 (input 136), sha_in=0d852a6b1c129cfd sha_out=0d852a6b1c129cfd exact=1, bytes_equal=True"
+  },
+  {
+   "name": "stage D: Python decoder agrees byte for byte",
+   "ok": true,
+   "detail": "python=136 B sha=0d852a6b1c129cfd"
+  },
+  {
+   "name": "control: mutating ONE token id changes the Rust output",
+   "ok": true,
+   "detail": "orig id=415 -> 65; output changed=True, len 136 -> 133"
+  },
+  {
+   "name": "control: the mutated output is not merely a re-encode",
+   "ok": true,
+   "detail": "also differs from the Python decoder's output"
+  },
+  {
+   "name": "corpus round trip (Rust): 37800 B, byte-identical",
+   "ok": true,
+   "detail": "n_ids=15080 sha_in=c769f7e9f390aa05 sha_out=c769f7e9f390aa05"
+  },
+  {
+   "name": "corpus round trip (Python, independent)",
+   "ok": true,
+   "detail": "15080 ids -> 37800 B"
+  }
+ ]
+}

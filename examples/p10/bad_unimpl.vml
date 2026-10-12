@@ -1,0 +1,4 @@
+SHAPE a, 1, 4
+SHAPE b, 1, 1
+MEAN  b, a
+HALT

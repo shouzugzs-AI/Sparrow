@@ -1,0 +1,15 @@
+[workspace]
+# `server` is P17's outboard HTTP/CLI crate (task P4). It is deliberately a
+# SEPARATE member so it can use std and link winsock without touching the
+# engine: vmlm-runtime is no_std with /NODEFAULTLIB, and mixing the two in one
+# crate graph is what breaks the engine's link flags. Measured requirement:
+# adding this member must leave target\release\vmlm-runtime.exe byte-identical.
+members = ["sys", "tensor", "ops", "trans", "blocks", "models", "core", "asm", "pt2vmb", "runtime", "tests", "train", "server"]
+resolver = "2"
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

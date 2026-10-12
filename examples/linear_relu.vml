@@ -1,0 +1,14 @@
+; P0 垂直切片：Linear + ReLU + Linear
+; 打通 格式 → 汇编 → 解释 → 结果 全链路
+; SHAPE 声明激活槽形状；flag 一律写成 key=value（避免与槽位名混淆）
+
+.section forward
+    SHAPE     h1, 1, 32
+    SHAPE     y, 1, 10
+    GEMM      h1, x, W1
+    BIAS      h1, b1
+    ACT       h1, h1, relu
+    GEMM      y, h1, W2
+    BIAS      y, b2
+    PRINT     y
+    HALT

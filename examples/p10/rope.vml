@@ -1,0 +1,20 @@
+SHAPE xrow, 1, 128
+SHAPE yrow, 1, 128
+SHAPE theta, 1, 1
+ROPE yrow, xrow, theta, 0
+PRINT yrow
+ROPE yrow, xrow, theta, 1
+PRINT yrow
+ROPE yrow, xrow, theta, 7
+PRINT yrow
+ROPE yrow, xrow, theta, 100
+PRINT yrow
+ROPE yrow, xrow, theta, 1000
+PRINT yrow
+ROPE yrow, xrow, theta, 10000
+PRINT yrow
+ROPE yrow, xrow, theta, 65536
+PRINT yrow
+ROPE yrow, xrow, theta, 131071
+PRINT yrow
+HALT

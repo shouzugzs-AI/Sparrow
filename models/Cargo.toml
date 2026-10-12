@@ -1,0 +1,18 @@
+[package]
+name = "vmlm-models"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# L3：稠密 attention 核心与通用原语
+vmlm-blocks = { path = "../blocks" }
+# L2a：内核 + 调度（thread-std）+ 模型原语（conn-sparse）
+vmlm-ops = { path = "../ops", features = ["thread-std", "conn-sparse"] }
+# L0：HAS_AVX2
+vmlm-sys = { path = "../sys" }
+# [L4-2] 不再依赖 vmlm-core：模型原语已下移到 L2a（vmlm_ops::conn / vmlm_ops::b1_pure）

@@ -1,0 +1,6 @@
+SHAPE   ctr, 1, 1
+SHAPE   one, 1, 1
+loop:
+EWSUB   ctr, ctr, one
+LOOP_CNT ctr, @loop
+HALT

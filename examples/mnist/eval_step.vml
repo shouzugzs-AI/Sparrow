@@ -1,0 +1,11 @@
+; 只前向（推理测试用，不更新权重）
+.section forward
+    SHAPE       h_pre, 1, 64
+    SHAPE       h,     1, 64
+    SHAPE       logits, 1, 4
+    GEMM        h_pre, x, W1
+    BIAS        h_pre, b1
+    ACT         h, h_pre, relu
+    GEMM        logits, h, W2
+    BIAS        logits, b2
+    HALT

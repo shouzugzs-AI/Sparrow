@@ -1,0 +1,6 @@
+SHAPE x, 1, 4
+SHAPE t, 1, 1
+SHAPE tb, 4, 4
+EMB x, tb, t
+PRINT x
+HALT

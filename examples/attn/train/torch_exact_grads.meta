@@ -1,0 +1,17 @@
+2.240510225
+Wqkv 192
+bqkv 24
+Wproj 64
+bproj 8
+W1 128
+b1 16
+W2 128
+b2 8
+ln1_g 8
+ln1_b 8
+ln2_g 8
+ln2_b 8
+lnf_g 8
+lnf_b 8
+E 64
+pos 32

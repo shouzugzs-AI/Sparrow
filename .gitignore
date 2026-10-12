@@ -1,0 +1,96 @@
+# ---------------------------------------------------------------------------
+# VMLM — build output, weights and local scratch. Nothing here is source.
+# 权重/词表不入库：.cpk 与 .vmb 由训练产出，见 README「权重从哪来」一节。
+# ---------------------------------------------------------------------------
+
+# Cargo 构建产物
+target/
+dist/
+
+# 训练/导出产物（检查点、词表、数据、报告）
+artifacts/
+# …但保留小体积实测证据（曲线/指标/摘要），供开源读者核对
+!artifacts/**/*.json
+!artifacts/**/*.jsonl
+!artifacts/**/*.csv
+!artifacts/**/*.md
+
+# 权重与序列化模型
+*.cpk
+*.nosection
+examples/**/*.vmb
+
+# 权重导出格式
+*.bf16
+*.npy
+
+# 压缩包（数据集/权重归档）
+*.7z
+
+# Windows 二进制与调试符号
+*.exe
+*.pdb
+*.dll
+*.lib
+*.exp
+*.ilk
+*.obj
+
+# 运行日志
+*.log
+
+# 本地脚本/临时工作区
+_opt/
+_*.txt
+
+# Cargo 本地覆盖（保留 .cargo/config.toml，它含 AVX2/FMA rustflags）
+.cargo/config.local.toml
+.cargo/config.local
+.cargo/credentials
+.cargo/credentials.toml
+.cargo/registry/
+
+# 编辑器/系统
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# 实验输出（由 tools/ 与 examples/ 下的脚本重新生成，不入库）
+# 这些文件曾以「跑过的痕迹」形式留在工作区，已在开源整理中删除。
+# ---------------------------------------------------------------------------
+# 逐指标 dump / 控制组 / 梯度 dump / 重发光产物 / S5 快照
+**/dump_*.bin
+**/_control_*.bin
+**/*.reemit.bin
+**/*_s5.bin
+examples/rnn/train/grads/
+# 单次运行的输出槽快照（每次跑都覆盖，无长期价值）
+examples/**/run_*/out.bin
+examples/**/out.bin
+examples/**/_smoke/
+# 图表/损失曲线产物
+**/loss_curve_*
+**/*_loss_curve.bin
+
+# 一次性产物目录（P16-1 的整模型权重、P17 探针中间件）
+examples/p16_conn/conn_sparse.bin
+examples/p16_conn/conn_sparse.tiny.bin
+
+# Python 字节码
+__pycache__/
+*.pyc
+*.pyo
+
+# ---------------------------------------------------------------------------
+# 例外区 —— 必须放在**所有**忽略规则之后
+#   gitignore 语义：后出现的规则覆盖先出现的；例外（!）若写在前面的位置，
+#   会被后面的忽略规则吃掉。曾经踩过：`!examples/p17_infer/dump_*.bin` 写在
+#   `**/dump_*.bin` 后面、但在 `**/*_s5.bin` 前面，于是
+#   examples/p17_infer/dump_L3_d64_k020_k8_s5.bin 仍被忽略 ⇒ clone 下来示例直接断。
+# p17_infer 的两个 dump_*.bin 是 testbed 必需输入（被 ref_*/canfail_* 证据与
+# tools/p17_infer_probe_canfail.py 引用），必须入库。
+# ---------------------------------------------------------------------------
+!examples/p17_infer/dump_*.bin

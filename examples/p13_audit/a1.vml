@@ -1,0 +1,4 @@
+SHAPE x, 1, 4
+COPY x, small_bf16
+PRINT x
+HALT

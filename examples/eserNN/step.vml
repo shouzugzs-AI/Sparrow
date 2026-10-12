@@ -1,0 +1,274 @@
+; ==========================================================================
+; P7-C: 真实 ESERNN 单步前向 → VMLM
+;   源:  <外部 ESERNN 源码目录>/core/ese_rnn.py
+;        ESERNN.forward_one / ESERNNBlock.forward_train /
+;        TimeMixing.forward_train / ChannelMixing.forward_train
+;
+; 与 P4 的 examples/rnn/ese_step.vml 的差别（本文件逐条兑现）：
+;   1) **多头**：S 是 [NHEAD, D, D]，8 个 head 各持一块 [D,D] 递归态
+;        - decay 是 **per-head 标量**（源码 decay.view(B,T,H,D)，每 head 的
+;          D 个通道共享同一个 decay 值）
+;        - OUTER 写入按 head：S[h] += v[h] ⊗ k[h]
+;        - 读出 o[h] = S[h] @ r[h]，8 个 head 的结果拼回 [1, H] 做 LayerNorm
+;   2) **通道混合（FFN）分支**：
+;        g  = x_k ⊙ x_prev + (1 - x_k) ⊙ LN2(x)   ← 另一半是 LN2(x)，**不是** x
+;        x += value_w( relu(key_w(g))² ) ⊙ ln     ← ffn_norm_mode='scale'
+;   3) x_prev 每层独立，层内跨 step 更新为「本层输出 x」（不是时间混合的输出）
+;   4) eps = 1e-6（cfg.rms_eps），**不是** torch 默认的 1e-5
+;
+; ============ 统一约定（已用探针实测确认，见 README）============
+;   GEMM 默认 NT:  C[M,N] = A[M,K] · B[N,K]^T   （B 按 nn.Linear 的 [out,in] 存放）
+;   ⚠ 汇编器的 `nn` 标志**实测不可用**（它仍按 A·B^T 走，且输出形状推断与
+;     运行时写入不一致，会越界写坏相邻槽）。所以本文件**一律不用 nn**；
+;     凡需要 A·B（B 为 [K,N]）的地方，先 TRANSPOSE 把 B 转成 [N,K]，再走默认 NT。
+;   LayerNorm 沿 **src 的行** 归一化；dst 必须与 src 同形状，否则越界写坏相邻槽。
+;   所有向量都是行向量 [1,N]。
+;   EWMUL/EWADD 广播： [M,N] op [M,1] → 行广播；  [M,N] op [1,N] → 列广播。
+;     （[1,H] op [H,D] **不是**合法分支，会直接报 "EW shape mismatch"）
+;
+; ============ 维度（mini 配置）============
+;   V=32  H=64  NHEAD=8  D=8  F=128  DH=16  T=6
+; ==========================================================================
+
+.section state
+    ; ---- 时间混合的递归态 + 上一 step 的本层输出 ----
+    ; st_S 把 8 个 head 的 [D,D] **水平拼接**成 [D, NHEAD*D] = [8, 64]：
+    ;   head h 占列 h*D .. h*D+D。
+    ;   这样选是因为 SLICE 只切**列**，水平拼接能让每个 head 被干净地切出来，
+    ;   且切出来的 S_h 是 [D,D]，可以直接喂给 OUTER / GEMM。
+    SHAPE   st_S,        8, 64
+    SHAPE   st_xprev,    1, 64
+
+.section forward
+    ; 输入槽：由驱动逐步写入（shape 取不到就推不出来，必须显式声明，
+    ; 否则 SHAPE 推断链断在 x 上，u/logits 等一长串槽位全是 0x0、越界写坏内存）
+    SHAPE       x,           1, 64
+    SHAPE       logits,      1, 32
+
+    ; ---------- 第 -1 段：把 LayerNorm 的 eps 设成真实 ESERNN 的值 ----------
+    ; 引擎 OP_LN 的 eps 默认 1e-5，而真实 ESERNN 用 cfg.rms_eps = 1e-6
+    ; （ese_rnn.py:38）。LN_EPS 指令改写 Vm.ln_eps，后续所有 LN 都用它。
+    ; 不设这条的话，mini 配置下 ln0 的输入方差只有 ~3.6e-4，eps 会主导
+    ; sqrt(var+eps)，把结果推偏 3e-2（见驱动输出的「对照」一栏与 README §8）。
+    LN_EPS      eps1e6
+
+    ; ---------- 第 0 段：锁存 x_prev ----------
+    ; 必须是第一条指令：后面 x 被子层反复改写，读不到原始值了。
+    COPY    st_xprev, x
+
+    ; ---------- 第 1 段：u = ln0(x)（ESERNN.forward_one 的入口）----------
+    LN      u, x, ln0_g, ln0_b
+
+    ; ---------- 第 2 段：时间混合（TimeMixing）----------
+    ; 源码:  xx = x_prev - ln1(x)
+    ;   x 是 ln1 之后的；x_prev 是块级的、**未过 ln1** 的 x_prev。
+    LN      x1, u, ln1_g, ln1_b
+    EWSUB   xx, st_xprev, x1
+
+    ; r = σ(W_r·(x1 + xx⊙x_r))   [1,H]
+    EWMUL   g1, xx, tm_xr
+    EWADD   g1, x1, g1
+    GEMM    r, g1, tm_Wr
+    ACT     r, r, sigmoid
+    ; k = W_k·(x1 + xx⊙x_k)
+    EWMUL   g2, xx, tm_xk
+    EWADD   g2, x1, g2
+    GEMM    kk, g2, tm_Wk
+    ; v = W_v·(x1 + xx⊙x_v)
+    EWMUL   g3, xx, tm_xv
+    EWADD   g3, x1, g3
+    GEMM    vv, g3, tm_Wv
+
+    ; ---- decay[h] = exp(-exp(w0[h] + tanh((x1 + xx⊙x_w)@w1)@w2)) ----
+    EWMUL   g4, xx, tm_xw
+    EWADD   g4, x1, g4
+    ; w1/w2 是 nn.Parameter，布局与 nn.Linear 相反：
+    ;   训练侧 w1p=[H,DH]，w2p=[DH,H]。本文件用的是**转置后的**副本
+    ;   w1pT=[DH,H]、w2pT=[H,DH]，这样默认 NT 直接给出正确结果。
+    ;   NT: GEMM(g4[1,H], w1pT[DH,H]) ⇒ [1,DH] = g4·w1pT^T = g4·w1p ✓
+    GEMM    gd, g4, tm_w1pT
+    ACT     gd, gd, tanh
+    ;   NT: GEMM(gd[1,DH], w2pT[H,DH]) ⇒ [1,H] = gd·w2pT^T = gd·w2p ✓
+    GEMM    om, gd, tm_w2pT
+    ; w0 导出成列向量 [H,1]。源码里 w0 是 [H]，加在 [1,H] 上是逐元素。
+    ; 这里需要把 [H,1] 变成 [1,H] 才能和 om 逐元素相加 ⇒ TRANSPOSE。
+    TRANSPOSE w0row, tm_w0col
+    EWADD   om, om, w0row
+    EXP     dec, om
+    NEG     dec, dec
+    EXP     dec, dec
+    ; dec[1,H]：每 head 占 D=8 个连续通道。源码 decay.view(B,T,H,D) 后
+    ; 每 head 的 D 个通道共享同一个值，权威取值是**该 head 的第 0 个通道**。
+    ; 取出来（[1,1]），再用 GEMM 复制 D 份成 [1,D]，最后拼成 [1,H]。
+    SLICE   e0, dec, 0, 1
+    SLICE   e1, dec, 8, 1
+    SLICE   e2, dec, 16, 1
+    SLICE   e3, dec, 24, 1
+    SLICE   e4, dec, 32, 1
+    SLICE   e5, dec, 40, 1
+    SLICE   e6, dec, 48, 1
+    SLICE   e7, dec, 56, 1
+    ; GEMM(es[1,1], onerow8[8,1]) ⇒ C[1,8]：把一个标量复制 8 份
+    ; ⚠ 显式声明 f0..f7 与 hc*/hdec 的形状：这里的 GEMM M=1，而 SLICE 出来的
+    ;   e* 形状要靠宽度推断，链条一断就会变成 0x0 槽位（越界写坏内存）。
+    SHAPE   f0,          1, 8
+    SHAPE   f1,          1, 8
+    SHAPE   f2,          1, 8
+    SHAPE   f3,          1, 8
+    SHAPE   f4,          1, 8
+    SHAPE   f5,          1, 8
+    SHAPE   f6,          1, 8
+    SHAPE   f7,          1, 8
+    SHAPE   e0,          1, 1
+    SHAPE   e1,          1, 1
+    SHAPE   e2,          1, 1
+    SHAPE   e3,          1, 1
+    SHAPE   e4,          1, 1
+    SHAPE   e5,          1, 1
+    SHAPE   e6,          1, 1
+    SHAPE   e7,          1, 1
+    SHAPE   hc1,         1, 16
+    SHAPE   hc2,         1, 24
+    SHAPE   hc3,         1, 32
+    SHAPE   hc4,         1, 40
+    SHAPE   hc5,         1, 48
+    SHAPE   hc6,         1, 56
+    SHAPE   hdec,        1, 64
+    SHAPE   dcol,        64, 1
+    GEMM    f0, e0, one_r8
+    GEMM    f1, e1, one_r8
+    GEMM    f2, e2, one_r8
+    GEMM    f3, e3, one_r8
+    GEMM    f4, e4, one_r8
+    GEMM    f5, e5, one_r8
+    GEMM    f6, e6, one_r8
+    GEMM    f7, e7, one_r8
+    CONCAT  hc1, f0, f1
+    CONCAT  hc2, hc1, f2
+    CONCAT  hc3, hc2, f3
+    CONCAT  hc4, hc3, f4
+    CONCAT  hc5, hc4, f5
+    CONCAT  hc6, hc5, f6
+    CONCAT  hdec, hc6, f7
+    ; hdec[1,H]：每 head 的 D 个通道都是该 head 的 decay 标量。
+    ; 转成列向量 [H,1] 后与 [D,H] 相乘 ⇒ 命中「[M,N] op [M,1] 行广播」
+    TRANSPOSE dcol, hdec
+    ; st_S[D, NHEAD*D] 按**列**缩放：列 j 属于 head j/D，需要乘 decay[j/D]。
+    ; [D,64] op [1,64] 命中「[M,N] op [1,N] 列广播」⇒ 每列乘 decay[j/D] ✓
+    EWMUL   st_S, st_S, hdec
+
+    ; ---- 逐 head 外积写入： S[h] += v[h] ⊗ k[h] ----
+    ; st_S 的 head h 在列 h*D..h*D+D。STORE 用 SLICE 切出 [D,D] 副本算完后，
+    ; 再用 WRITECOL 写回（WRITECOL 有专门的列区间写回路径）。
+    ; 这里因为 OUTER 是原地累加，直接在 st_S 上做会波及全部列；
+    ; 所以走「切片 → 独立算 → 写回」三步。
+    SLICE   S0, st_S, 0, 8
+    SLICE   S1, st_S, 8, 8
+    SLICE   S2, st_S, 16, 8
+    SLICE   S3, st_S, 24, 8
+    SLICE   S4, st_S, 32, 8
+    SLICE   S5, st_S, 40, 8
+    SLICE   S6, st_S, 48, 8
+    SLICE   S7, st_S, 56, 8
+
+    SLICE   r0, r, 0, 8
+    SLICE   r1, r, 8, 8
+    SLICE   r2, r, 16, 8
+    SLICE   r3, r, 24, 8
+    SLICE   r4, r, 32, 8
+    SLICE   r5, r, 40, 8
+    SLICE   r6, r, 48, 8
+    SLICE   r7, r, 56, 8
+    SLICE   k0, kk, 0, 8
+    SLICE   k1, kk, 8, 8
+    SLICE   k2, kk, 16, 8
+    SLICE   k3, kk, 24, 8
+    SLICE   k4, kk, 32, 8
+    SLICE   k5, kk, 40, 8
+    SLICE   k6, kk, 48, 8
+    SLICE   k7, kk, 56, 8
+    SLICE   v0, vv, 0, 8
+    SLICE   v1, vv, 8, 8
+    SLICE   v2, vv, 16, 8
+    SLICE   v3, vv, 24, 8
+    SLICE   v4, vv, 32, 8
+    SLICE   v5, vv, 40, 8
+    SLICE   v6, vv, 48, 8
+    SLICE   v7, vv, 56, 8
+
+    ; OUTER(S_h, v_h, k_h)： S_h[i,j] += v_h[i]*k_h[j]   ✓ 正是 S[h] += v[h]⊗k[h]
+    OUTER   S0, v0, k0
+    OUTER   S1, v1, k1
+    OUTER   S2, v2, k2
+    OUTER   S3, v3, k3
+    OUTER   S4, v4, k4
+    OUTER   S5, v5, k5
+    OUTER   S6, v6, k6
+    OUTER   S7, v7, k7
+
+    WRITECOL st_S, S0, 0
+    WRITECOL st_S, S1, 8
+    WRITECOL st_S, S2, 16
+    WRITECOL st_S, S3, 24
+    WRITECOL st_S, S4, 32
+    WRITECOL st_S, S5, 40
+    WRITECOL st_S, S6, 48
+    WRITECOL st_S, S7, 56
+
+    ; ---- o[h] = S[h] @ r[h] ----
+    ; 默认 NT 是 A·B^T。想要 S_h·r_h^T，取 B = r_h 即可（A=S_h [D,D], B=r_h [1,D]）
+    ;   ⇒ C[D,1] = S_h · r_h^T ⇒ 正是 o[h] 的列向量形式 ✓
+    ; 于是不需要 nn，也不需要额外 TRANSPOSE。
+    GEMM    o0c, S0, r0
+    GEMM    o1c, S1, r1
+    GEMM    o2c, S2, r2
+    GEMM    o3c, S3, r3
+    GEMM    o4c, S4, r4
+    GEMM    o5c, S5, r5
+    GEMM    o6c, S6, r6
+    GEMM    o7c, S7, r7
+
+    ; 转成行向量后按 head 顺序拼接回 [1,H]
+    ; （源码 outs.reshape(B,T,H*D) = heads 沿最后一维顺序拼接）
+    TRANSPOSE oh0, o0c
+    TRANSPOSE oh1, o1c
+    TRANSPOSE oh2, o2c
+    TRANSPOSE oh3, o3c
+    TRANSPOSE oh4, o4c
+    TRANSPOSE oh5, o5c
+    TRANSPOSE oh6, o6c
+    TRANSPOSE oh7, o7c
+    CONCAT  t1, oh0, oh1
+    CONCAT  t2, t1, oh2
+    CONCAT  t3, t2, oh3
+    CONCAT  t4, t3, oh4
+    CONCAT  t5, t4, oh5
+    CONCAT  t6, t5, oh6
+    CONCAT  ocat, t6, oh7
+
+    ; ---- out = ln(outs) ; x += o_w(out) ----
+    LN      obs, ocat, tmln_g, tmln_b
+    GEMM    tmo, obs, tm_Wo
+    EWADD   x2, u, tmo
+
+    ; ---------- 第 3 段：通道混合（ChannelMixing）----------
+    ; x_prev 用**块级 st_xprev**（第 0 段锁存的，全程未被改写）
+    LN      x3, x2, ln2_g, ln2_b
+    ; g = x3 + (x_prev - x3) ⊙ x_k
+    EWSUB   gg, st_xprev, x3
+    EWMUL   gg, gg, cm_xk
+    EWADD   gg, x3, gg
+    GEMM    gk, gg, cm_Wkey
+    ACT     gk, gk, relu2
+    GEMM    gv, gk, cm_Wval
+    ; ffn_norm_mode='scale'：out ⊙ ln（逐通道 gamma，恒等初始）
+    EWMUL   gv, gv, cmln_g
+    EWADD   x4, x2, gv
+
+    ; ---------- 第 4 段：输出 + 推进 x_prev ----------
+    LN      xn, x4, lnout_g, lnout_b
+    GEMM    logits, xn, E
+
+    ; 源码 state[i][0].copy_(x[0,-1])：**块输出**成为下一 step 的 x_prev
+    COPY    st_xprev, x4
+    HALT

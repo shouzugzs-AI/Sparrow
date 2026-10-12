@@ -1,0 +1,47 @@
+﻿==========================================================================
+P17 MINIMAL 1-LAYER ATTENTION GRADCHECK (independent, central diff)
+==========================================================================
+config: d=4 P=3 vocab=4 eps=1.0e-03 seed=1234 tol=2.0e-03
+spec  : causal softmax(q k^T/sqrt(d)) v ; u = h + o Wo^T ; CE on last pos
+
+loss = 1.30428622   target = 3
+
+--- analytic vs central-difference, per matrix ---
+[PASS] Wq   rel_max=9.222e-09  abs_max=8.303e-12  nonzero=16/16  worst=(i=3,j=2 ana=9.003882e-04 num=9.003882e-04)
+[PASS] Wk   rel_max=4.420e-09  abs_max=2.626e-12  nonzero=16/16  worst=(i=0,j=0 ana=-5.940471e-04 num=-5.940471e-04)
+[PASS] Wv   rel_max=1.831e-09  abs_max=1.006e-10  nonzero=16/16  worst=(i=2,j=1 ana=3.858482e-02 num=3.858482e-02)
+[PASS] Wo   rel_max=4.999e-09  abs_max=4.140e-10  nonzero=16/16  worst=(i=2,j=0 ana=5.776828e-02 num=5.776828e-02)
+[PASS] E    rel_max=5.919e-08  abs_max=9.952e-09  nonzero=16/16  worst=(i=2,j=2 ana=1.676220e-01 num=1.676220e-01)
+
+--- vacuity guard (a nearly-all-zero grad makes the check empty) ---
+[PASS] Wq  has 16 nonzero entries => comparison is non-vacuous
+[PASS] Wk  has 16 nonzero entries => comparison is non-vacuous
+[PASS] Wv  has 16 nonzero entries => comparison is non-vacuous
+[PASS] Wo  has 16 nonzero entries => comparison is non-vacuous
+[PASS] E   has 16 nonzero entries => comparison is non-vacuous
+
+--- can-fail: perturb the analytic backward and require detection ---
+[PASS] can-fail mode=drop_scale       detected=True  worst_rel=5.000e-01 (must exceed tol=2.0e-03)
+[PASS] can-fail mode=no_softmax_jac   detected=True  worst_rel=1.428e+00 (must exceed tol=2.0e-03)
+[PASS] can-fail mode=neg_dv           detected=True  worst_rel=2.000e+00 (must exceed tol=2.0e-03)
+[UNPROVEN] can-fail mode=drop_causal      detected=False worst_rel=5.919e-08
+           REASON: causal mask makes A[t,s2]==0 for s2>t, and every
+           extra term in the non-causal backward carries a factor A[t,s2].
+           => the two variants are NUMERICALLY IDENTICAL; this control
+           cannot falsify 'causality'. Asserted by the FORWARD instead:
+
+--- CAUSAL: causality must be asserted on the FORWARD (see UNPROVEN above) ---
+[PASS] CAUSAL-1 A[t,s2] == 0 for ALL s2 > t   nonzero_upper=0 / 3
+[PASS] CAUSAL-2 perturbing h[P-1] leaves o[0..P-2] UNCHANGED  changed_entries=0
+[PASS] CAUSAL-1 can-fail: WITHOUT the mask, upper triangle is nonzero  nonzero=3 / 3
+
+--- diagnostic: dH (needed for layer-to-layer backprop) ---
+[PASS] dH analytic vs central diff  rel_max=2.103e-08  nonzero=12/12
+
+==========================================================================
+checks=87 fail=0 unproven=1
+RESULT: all analytic gradients match central difference within tol=0.002.
+        => the formula in THIS file is correct on this spec.
+        If Lead's implementation disagrees with these numbers, the bug is
+        in that implementation (compare per-matrix, per-entry).
+==========================================================================

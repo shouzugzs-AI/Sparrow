@@ -1,0 +1,62 @@
+{
+ "arms": [
+  {
+   "name": "A default (bpe absent)",
+   "size": 74752,
+   "meta": {
+    "rc": 0,
+    "secs": 8.7,
+    "target_dir": "<用户目录>/AppData/Local/Temp/p17_bpe_size_A_default_x8l9az6p/tdir",
+    "output_tail": [
+     "",
+     "warning: direct cast of function item into an integer",
+     "   --> core/src/jit.rs:315:33",
+     "    |",
+     "315 |         _ => kernels::jit_ewdiv as usize,",
+     "    |                                 ^^^^^^^^",
+     "    |",
+     "help: first cast to a pointer `as *const ()`",
+     "    |",
+     "315 |         _ => kernels::jit_ewdiv as *const () as usize,",
+     "    |                                 ++++++++++++",
+     "",
+     "warning: `vmlm-core` (lib) generated 21 warnings (run `cargo fix --lib -p vmlm-core` to apply 16 suggestions)",
+     "    Finished `release` profile [optimized] target(s) in 8.67s"
+    ]
+   }
+  },
+  {
+   "name": "B bpe feature ON",
+   "size": 74752,
+   "meta": {
+    "rc": 0,
+    "secs": 7.8,
+    "target_dir": "<用户目录>/AppData/Local/Temp/p17_bpe_size_B_bpe_ri0v8jri/tdir",
+    "output_tail": [
+     "",
+     "warning: direct cast of function item into an integer",
+     "   --> core/src/jit.rs:315:33",
+     "    |",
+     "315 |         _ => kernels::jit_ewdiv as usize,",
+     "    |                                 ^^^^^^^^",
+     "    |",
+     "help: first cast to a pointer `as *const ()`",
+     "    |",
+     "315 |         _ => kernels::jit_ewdiv as *const () as usize,",
+     "    |                                 ++++++++++++",
+     "",
+     "warning: `vmlm-core` (lib) generated 21 warnings (run `cargo fix --lib -p vmlm-core` to apply 16 suggestions)",
+     "    Finished `release` profile [optimized] target(s) in 7.75s"
+    ]
+   }
+  }
+ ],
+ "fingerprint": {
+  "bpe.rs": "7181b13ae81a7470f5d7d476d02d8d42d95e81a50d5914827fb73d86af30023e",
+  "lib.rs": "7863183d906d31bf89e08d08740ac0c2217dd382ae67bbe78005771fc492104b",
+  "format.rs": "4285f8cdb632db25d7596acc6c7b99fc9038fa9d2aed9c641060cb9403651172"
+ },
+ "budget": 84480,
+ "pass": 3,
+ "fail": 0
+}

@@ -1,0 +1,16 @@
+[package]
+name = "vmlm-blocks"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# L0：HAS_AVX2 能力位
+vmlm-sys = { path = "../sys" }
+# L2a：内核（gemm_nt 等）与调度（par_for）。blocks 只被 trainer/models 链接 ⇒ 直接开 thread-std。
+vmlm-ops = { path = "../ops", features = ["thread-std"] }
+# [L4-1] 不再依赖 vmlm-core

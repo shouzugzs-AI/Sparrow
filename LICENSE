@@ -1,0 +1,48 @@
+VMLM — 专有软件许可（Proprietary License）
+版权所有 (c) 2026 金施哲（下称"权利人"）。保留所有权利。
+Copyright (c) 2026 金施哲 (Jin Shizhe) (the "Rights Holder"). All rights reserved.
+
+本仓库及其全部内容（包括但不限于源代码、文档、数据、脚本、模型、示例与任何
+衍生成果，以下合称"本软件"）均为权利人的专有财产，受著作权法及国际著作权
+条约保护。
+
+未经权利人事先书面许可，任何人不得实施下列行为：
+  1. 复制、发行、公开传播、公开提供、公开展示，或以其他方式向任何第三方提供
+     本软件的全部或任何部分；
+  2. 修改、改编、翻译、演绎，或创作本软件的衍生作品；
+  3. 反向工程、反编译、反汇编，或以其他方式试图获取源代码（法律强制性规定
+     明确允许的情形除外）；
+  4. 将本软件或其任何部分用于商业目的，包括但不限于内部生产使用、SaaS 托管/
+     对外提供服务、二次分发、嵌入或捆绑至其他产品、或以本软件为基础提供有偿
+     服务；
+  5. 移除、遮蔽或更改本软件中的任何著作权、商标、专利或其他权利声明。
+
+如需使用授权或商业许可，请联系：<contact@example.com>（占位符，待权利人填写）。
+
+免责声明：本软件按"现状"（AS IS）提供，不附带任何明示或默示的担保，包括但
+不限于对适销性、特定用途适用性与不侵权的担保。在任何情况下，权利人及贡献者
+均不对因本软件或本软件的使用而产生的任何直接、间接、附带、特殊、惩罚性或
+后果性损害承担责任，即使已被告知该等损害的可能性。
+
+权利保留：权利人保留随时修改本许可条款的权利。依据权利人与相关方另行签署的
+书面许可（包括商业许可、贡献者著作权转让协议等）所取得的权利，不受本文件
+变更的影响。
+
+---
+
+No part of this repository may be used, copied, modified, distributed, sublicensed,
+published, or exploited commercially, in whole or in part, without the prior written
+permission of the Rights Holder. Permission requests: <contact@example.com>.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+注：本文件为项目维护者起草的专有权利声明模板，**不构成法律意见**。在正式对外
+授权、收费或依赖本文件处理争议之前，应由执业律师审阅并按需补充（例如权利人名
+称/实体、管辖地与适用法律、商标声明、第三方依赖的许可清单）。

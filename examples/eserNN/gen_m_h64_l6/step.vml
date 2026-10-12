@@ -1,0 +1,1128 @@
+; ==========================================================================
+; 由 tools/gen_eserNN.py **自动生成**，请勿手改。
+; 配置: vocab=32 hidden=64 n_heads=8 head_dim=8 inter=192 decay_hidden=32 layers=6 eps=1e-06 T=6
+; 源: <外部 ESERNN 源码目录>/core/ese_rnn.py
+;     ESERNN.forward_one / forward_train / ESERNNBlock / TimeMixing / ChannelMixing
+;
+; 约定（P7-C 实测）:
+;   GEMM 默认 NT: C[M,N] = A[M,K]·B[N,K]^T  （B 按 nn.Linear 的 [out,in]）
+;   `nn` 标志实测不可用，一律不用；需要 A·B 时先 TRANSPOSE。
+;   LayerNorm 沿 src 的**行**归一化；dst 必须与 src 同形状。
+;   EWMUL/EWADD 广播: [M,N]op[M,1] 行广播；[M,N]op[1,N] 列广播。
+; ==========================================================================
+
+.section state
+    ; ---- 第 0 层：递归态（8 个 head 的 [8,8] 水平拼接成 [8,64]）----
+    SHAPE   st_S0,    8, 64
+    SHAPE   st_xprev0,    1, 64
+    ; ---- 第 1 层：递归态（8 个 head 的 [8,8] 水平拼接成 [8,64]）----
+    SHAPE   st_S1,    8, 64
+    SHAPE   st_xprev1,    1, 64
+    ; ---- 第 2 层：递归态（8 个 head 的 [8,8] 水平拼接成 [8,64]）----
+    SHAPE   st_S2,    8, 64
+    SHAPE   st_xprev2,    1, 64
+    ; ---- 第 3 层：递归态（8 个 head 的 [8,8] 水平拼接成 [8,64]）----
+    SHAPE   st_S3,    8, 64
+    SHAPE   st_xprev3,    1, 64
+    ; ---- 第 4 层：递归态（8 个 head 的 [8,8] 水平拼接成 [8,64]）----
+    SHAPE   st_S4,    8, 64
+    SHAPE   st_xprev4,    1, 64
+    ; ---- 第 5 层：递归态（8 个 head 的 [8,8] 水平拼接成 [8,64]）----
+    SHAPE   st_S5,    8, 64
+    SHAPE   st_xprev5,    1, 64
+
+.section forward
+    ; 输入槽必须显式声明形状（推不出来 → 0x0 → 越界写坏内存）
+    SHAPE       x,           1, 64
+    SHAPE       logits,      1, 32
+
+    ; ---------- 把 LayerNorm 的 eps 设成真实 ESERNN 的 cfg.rms_eps ----------
+    ; 引擎 OP_LN 默认 1e-5，真实 ESERNN 是 1e-6；不发这条 mini 下差 2.8e-2。
+    LN_EPS      eps1e6
+
+    ; ---------- x_prev 说明（**不要**在这里锁存 x！）----------
+    ; 源码 forward_one:
+    ;     for i, blk in enumerate(self.layers):
+    ;         prev_x, kv = state[i][0], state[i][1]
+    ;         x, kv = blk(x, prev_x.unsqueeze(0), kv, H, D)
+    ;         state[i][0].copy_(x[0,-1])
+    ; ⇒ 每层的 x_prev 是「**上一 step 该层自己的块输出**」，
+    ;   完全由持久状态提供，**不是**本 step 的输入 x。
+    ;   各层末尾的 `COPY st_xprev{l}, L{l}_out` 负责推进它。
+    ;
+    ; ⚠ P7-C 手写的单层版在开头写了 `COPY st_xprev, x`，那在 mini 下
+    ;   是**死代码**（mini 的 tm_xr/xk/xv/xw 与 cm_xk 全为 0，
+    ;   于是 xx = x_prev - ln1(x) 对 r/k/v/decay/FFN 全部无影响）。
+    ;   放大后权重非零，它立刻变成真 bug（实测差 6.5e-2）。
+    ;   本生成器因此**不做任何开头的 x_prev 锁存**。
+
+    ; ---------- 入口: x = ln0(embed(token)) ----------
+    LN      u, x, ln0_g, ln0_b
+
+    ; ================= 第 0 层（ESERNNBlock）=================
+    ; 本层独立的 x_prev（源码 states[0][0]），跨 step 由块输出推进
+    LN      L0_x1, u, l0_ln1_g, l0_ln1_b
+    EWSUB   L0_xx, st_xprev0, L0_x1
+
+    ; ---- TimeMixing: r / k / v ----
+    EWMUL   L0_g1, L0_xx, l0_tm_xr
+    EWADD   L0_g1, L0_x1, L0_g1
+    GEMM    L0_r, L0_g1, l0_tm_Wr
+    ACT     L0_r, L0_r, sigmoid
+    EWMUL   L0_g2, L0_xx, l0_tm_xk
+    EWADD   L0_g2, L0_x1, L0_g2
+    GEMM    L0_kk, L0_g2, l0_tm_Wk
+    EWMUL   L0_g3, L0_xx, l0_tm_xv
+    EWADD   L0_g3, L0_x1, L0_g3
+    GEMM    L0_vv, L0_g3, l0_tm_Wv
+
+    ; ---- decay[h] = exp(-exp(w0[h] + tanh((x1 + xx⊙x_w)@w1)@w2)) ----
+    EWMUL   L0_g4, L0_xx, l0_tm_xw
+    EWADD   L0_g4, L0_x1, L0_g4
+    ; w1/w2 是 nn.Parameter（布局 [H,DH]/[DH,H]，与 nn.Linear 相反）→ 用转置副本
+    GEMM    L0_gd, L0_g4, l0_tm_w1pT
+    ACT     L0_gd, L0_gd, tanh
+    GEMM    L0_om, L0_gd, l0_tm_w2pT
+    TRANSPOSE L0_w0row, l0_tm_w0col
+    EWADD   L0_om, L0_om, L0_w0row
+    EXP     L0_dec, L0_om
+    NEG     L0_dec, L0_dec
+    EXP     L0_dec, L0_dec
+
+    ; ---- per-head 标量 decay：取每 head 第 0 通道，复制 D 份后按列缩放 st_S ----
+    SLICE   L0_e0, L0_dec, 0, 1
+    SLICE   L0_e1, L0_dec, 8, 1
+    SLICE   L0_e2, L0_dec, 16, 1
+    SLICE   L0_e3, L0_dec, 24, 1
+    SLICE   L0_e4, L0_dec, 32, 1
+    SLICE   L0_e5, L0_dec, 40, 1
+    SLICE   L0_e6, L0_dec, 48, 1
+    SLICE   L0_e7, L0_dec, 56, 1
+    SHAPE   L0_f0,          1, 8
+    SHAPE   L0_f1,          1, 8
+    SHAPE   L0_f2,          1, 8
+    SHAPE   L0_f3,          1, 8
+    SHAPE   L0_f4,          1, 8
+    SHAPE   L0_f5,          1, 8
+    SHAPE   L0_f6,          1, 8
+    SHAPE   L0_f7,          1, 8
+    SHAPE   L0_e0,          1, 1
+    SHAPE   L0_e1,          1, 1
+    SHAPE   L0_e2,          1, 1
+    SHAPE   L0_e3,          1, 1
+    SHAPE   L0_e4,          1, 1
+    SHAPE   L0_e5,          1, 1
+    SHAPE   L0_e6,          1, 1
+    SHAPE   L0_e7,          1, 1
+    SHAPE   L0_hc2,     1, 24
+    SHAPE   L0_hc3,     1, 32
+    SHAPE   L0_hc4,     1, 40
+    SHAPE   L0_hc5,     1, 48
+    SHAPE   L0_hc6,     1, 56
+    SHAPE   L0_hdec,    1, 64
+    GEMM    L0_f0, L0_e0, one_r8
+    GEMM    L0_f1, L0_e1, one_r8
+    GEMM    L0_f2, L0_e2, one_r8
+    GEMM    L0_f3, L0_e3, one_r8
+    GEMM    L0_f4, L0_e4, one_r8
+    GEMM    L0_f5, L0_e5, one_r8
+    GEMM    L0_f6, L0_e6, one_r8
+    GEMM    L0_f7, L0_e7, one_r8
+    CONCAT  L0_hc1, L0_f0, L0_f1
+    CONCAT  L0_hc2, L0_hc1, L0_f2
+    CONCAT  L0_hc3, L0_hc2, L0_f3
+    CONCAT  L0_hc4, L0_hc3, L0_f4
+    CONCAT  L0_hc5, L0_hc4, L0_f5
+    CONCAT  L0_hc6, L0_hc5, L0_f6
+    CONCAT  L0_hdec, L0_hc6, L0_f7
+    ; hdec[1,HD] 每 head 的 D 个通道都是该 head 的 decay 标量
+    ; st_S0[D, NC*D] 按列缩放：列 j 的 head 是 j//D，命中「[M,N]op[1,N]」列广播
+    EWMUL   st_S0, st_S0, L0_hdec
+
+    ; ---- 逐 head 外积写入: S[h] += v[h] ⊗ k[h] ----
+    ; 切片 → 独立算 → WRITECOL 写回（OUTER 是原地累加，不能直接在 st_S 上做）
+    SLICE   L0_S0, st_S0, 0, 8
+    SLICE   L0_S1, st_S0, 8, 8
+    SLICE   L0_S2, st_S0, 16, 8
+    SLICE   L0_S3, st_S0, 24, 8
+    SLICE   L0_S4, st_S0, 32, 8
+    SLICE   L0_S5, st_S0, 40, 8
+    SLICE   L0_S6, st_S0, 48, 8
+    SLICE   L0_S7, st_S0, 56, 8
+    SLICE   L0_r0, L0_r, 0, 8
+    SLICE   L0_k0, L0_kk, 0, 8
+    SLICE   L0_v0, L0_vv, 0, 8
+    SLICE   L0_r1, L0_r, 8, 8
+    SLICE   L0_k1, L0_kk, 8, 8
+    SLICE   L0_v1, L0_vv, 8, 8
+    SLICE   L0_r2, L0_r, 16, 8
+    SLICE   L0_k2, L0_kk, 16, 8
+    SLICE   L0_v2, L0_vv, 16, 8
+    SLICE   L0_r3, L0_r, 24, 8
+    SLICE   L0_k3, L0_kk, 24, 8
+    SLICE   L0_v3, L0_vv, 24, 8
+    SLICE   L0_r4, L0_r, 32, 8
+    SLICE   L0_k4, L0_kk, 32, 8
+    SLICE   L0_v4, L0_vv, 32, 8
+    SLICE   L0_r5, L0_r, 40, 8
+    SLICE   L0_k5, L0_kk, 40, 8
+    SLICE   L0_v5, L0_vv, 40, 8
+    SLICE   L0_r6, L0_r, 48, 8
+    SLICE   L0_k6, L0_kk, 48, 8
+    SLICE   L0_v6, L0_vv, 48, 8
+    SLICE   L0_r7, L0_r, 56, 8
+    SLICE   L0_k7, L0_kk, 56, 8
+    SLICE   L0_v7, L0_vv, 56, 8
+    OUTER   L0_S0, L0_v0, L0_k0
+    OUTER   L0_S1, L0_v1, L0_k1
+    OUTER   L0_S2, L0_v2, L0_k2
+    OUTER   L0_S3, L0_v3, L0_k3
+    OUTER   L0_S4, L0_v4, L0_k4
+    OUTER   L0_S5, L0_v5, L0_k5
+    OUTER   L0_S6, L0_v6, L0_k6
+    OUTER   L0_S7, L0_v7, L0_k7
+    WRITECOL st_S0, L0_S0, 0
+    WRITECOL st_S0, L0_S1, 8
+    WRITECOL st_S0, L0_S2, 16
+    WRITECOL st_S0, L0_S3, 24
+    WRITECOL st_S0, L0_S4, 32
+    WRITECOL st_S0, L0_S5, 40
+    WRITECOL st_S0, L0_S6, 48
+    WRITECOL st_S0, L0_S7, 56
+
+    ; ---- o[h] = S[h] @ r[h] : 默认 NT 取 B=r_h[1,D] ⇒ C[D,1]=S_h·r_h^T ----
+    GEMM    L0_o0c, L0_S0, L0_r0
+    GEMM    L0_o1c, L0_S1, L0_r1
+    GEMM    L0_o2c, L0_S2, L0_r2
+    GEMM    L0_o3c, L0_S3, L0_r3
+    GEMM    L0_o4c, L0_S4, L0_r4
+    GEMM    L0_o5c, L0_S5, L0_r5
+    GEMM    L0_o6c, L0_S6, L0_r6
+    GEMM    L0_o7c, L0_S7, L0_r7
+    TRANSPOSE L0_oh0, L0_o0c
+    TRANSPOSE L0_oh1, L0_o1c
+    TRANSPOSE L0_oh2, L0_o2c
+    TRANSPOSE L0_oh3, L0_o3c
+    TRANSPOSE L0_oh4, L0_o4c
+    TRANSPOSE L0_oh5, L0_o5c
+    TRANSPOSE L0_oh6, L0_o6c
+    TRANSPOSE L0_oh7, L0_o7c
+    CONCAT  L0_t1, L0_oh0, L0_oh1
+    CONCAT  L0_t2, L0_t1, L0_oh2
+    CONCAT  L0_t3, L0_t2, L0_oh3
+    CONCAT  L0_t4, L0_t3, L0_oh4
+    CONCAT  L0_t5, L0_t4, L0_oh5
+    CONCAT  L0_t6, L0_t5, L0_oh6
+    CONCAT  L0_ocat, L0_t6, L0_oh7
+
+    ; ---- out = ln(outs); x2 = x + o_w(out) ----
+    LN      L0_obs, L0_ocat, l0_tmln_g, l0_tmln_b
+    GEMM    L0_tmo, L0_obs, l0_tm_Wo
+    EWADD   L0_x2, u, L0_tmo
+
+    ; ---- ChannelMixing(FFN) ----
+    LN      L0_x3, L0_x2, l0_ln2_g, l0_ln2_b
+    ; g = x3 + (x_prev - x3) ⊙ x_k   ← 用**未 LN 的块级 x_prev**
+    EWSUB   L0_gg, st_xprev0, L0_x3
+    EWMUL   L0_gg, L0_gg, l0_cm_xk
+    EWADD   L0_gg, L0_x3, L0_gg
+    GEMM    L0_gk, L0_gg, l0_cm_Wkey
+    ACT     L0_gk, L0_gk, relu2
+    GEMM    L0_gv, L0_gk, l0_cm_Wval
+    ; ffn_norm_mode='scale'：逐通道 gamma（恒等初始）
+    EWMUL   L0_gv, L0_gv, l0_cmln_g
+    EWADD   L0_out, L0_x2, L0_gv
+
+    ; ---- 推进本层 x_prev ← 块输出（源码 states[0][0].copy_(x[0,-1])）----
+    COPY    st_xprev0, L0_out
+
+    ; ================= 第 1 层（ESERNNBlock）=================
+    ; 本层独立的 x_prev（源码 states[1][0]），跨 step 由块输出推进
+    LN      L1_x1, L0_out, l1_ln1_g, l1_ln1_b
+    EWSUB   L1_xx, st_xprev1, L1_x1
+
+    ; ---- TimeMixing: r / k / v ----
+    EWMUL   L1_g1, L1_xx, l1_tm_xr
+    EWADD   L1_g1, L1_x1, L1_g1
+    GEMM    L1_r, L1_g1, l1_tm_Wr
+    ACT     L1_r, L1_r, sigmoid
+    EWMUL   L1_g2, L1_xx, l1_tm_xk
+    EWADD   L1_g2, L1_x1, L1_g2
+    GEMM    L1_kk, L1_g2, l1_tm_Wk
+    EWMUL   L1_g3, L1_xx, l1_tm_xv
+    EWADD   L1_g3, L1_x1, L1_g3
+    GEMM    L1_vv, L1_g3, l1_tm_Wv
+
+    ; ---- decay[h] = exp(-exp(w0[h] + tanh((x1 + xx⊙x_w)@w1)@w2)) ----
+    EWMUL   L1_g4, L1_xx, l1_tm_xw
+    EWADD   L1_g4, L1_x1, L1_g4
+    ; w1/w2 是 nn.Parameter（布局 [H,DH]/[DH,H]，与 nn.Linear 相反）→ 用转置副本
+    GEMM    L1_gd, L1_g4, l1_tm_w1pT
+    ACT     L1_gd, L1_gd, tanh
+    GEMM    L1_om, L1_gd, l1_tm_w2pT
+    TRANSPOSE L1_w0row, l1_tm_w0col
+    EWADD   L1_om, L1_om, L1_w0row
+    EXP     L1_dec, L1_om
+    NEG     L1_dec, L1_dec
+    EXP     L1_dec, L1_dec
+
+    ; ---- per-head 标量 decay：取每 head 第 0 通道，复制 D 份后按列缩放 st_S ----
+    SLICE   L1_e0, L1_dec, 0, 1
+    SLICE   L1_e1, L1_dec, 8, 1
+    SLICE   L1_e2, L1_dec, 16, 1
+    SLICE   L1_e3, L1_dec, 24, 1
+    SLICE   L1_e4, L1_dec, 32, 1
+    SLICE   L1_e5, L1_dec, 40, 1
+    SLICE   L1_e6, L1_dec, 48, 1
+    SLICE   L1_e7, L1_dec, 56, 1
+    SHAPE   L1_f0,          1, 8
+    SHAPE   L1_f1,          1, 8
+    SHAPE   L1_f2,          1, 8
+    SHAPE   L1_f3,          1, 8
+    SHAPE   L1_f4,          1, 8
+    SHAPE   L1_f5,          1, 8
+    SHAPE   L1_f6,          1, 8
+    SHAPE   L1_f7,          1, 8
+    SHAPE   L1_e0,          1, 1
+    SHAPE   L1_e1,          1, 1
+    SHAPE   L1_e2,          1, 1
+    SHAPE   L1_e3,          1, 1
+    SHAPE   L1_e4,          1, 1
+    SHAPE   L1_e5,          1, 1
+    SHAPE   L1_e6,          1, 1
+    SHAPE   L1_e7,          1, 1
+    SHAPE   L1_hc2,     1, 24
+    SHAPE   L1_hc3,     1, 32
+    SHAPE   L1_hc4,     1, 40
+    SHAPE   L1_hc5,     1, 48
+    SHAPE   L1_hc6,     1, 56
+    SHAPE   L1_hdec,    1, 64
+    GEMM    L1_f0, L1_e0, one_r8
+    GEMM    L1_f1, L1_e1, one_r8
+    GEMM    L1_f2, L1_e2, one_r8
+    GEMM    L1_f3, L1_e3, one_r8
+    GEMM    L1_f4, L1_e4, one_r8
+    GEMM    L1_f5, L1_e5, one_r8
+    GEMM    L1_f6, L1_e6, one_r8
+    GEMM    L1_f7, L1_e7, one_r8
+    CONCAT  L1_hc1, L1_f0, L1_f1
+    CONCAT  L1_hc2, L1_hc1, L1_f2
+    CONCAT  L1_hc3, L1_hc2, L1_f3
+    CONCAT  L1_hc4, L1_hc3, L1_f4
+    CONCAT  L1_hc5, L1_hc4, L1_f5
+    CONCAT  L1_hc6, L1_hc5, L1_f6
+    CONCAT  L1_hdec, L1_hc6, L1_f7
+    ; hdec[1,HD] 每 head 的 D 个通道都是该 head 的 decay 标量
+    ; st_S1[D, NC*D] 按列缩放：列 j 的 head 是 j//D，命中「[M,N]op[1,N]」列广播
+    EWMUL   st_S1, st_S1, L1_hdec
+
+    ; ---- 逐 head 外积写入: S[h] += v[h] ⊗ k[h] ----
+    ; 切片 → 独立算 → WRITECOL 写回（OUTER 是原地累加，不能直接在 st_S 上做）
+    SLICE   L1_S0, st_S1, 0, 8
+    SLICE   L1_S1, st_S1, 8, 8
+    SLICE   L1_S2, st_S1, 16, 8
+    SLICE   L1_S3, st_S1, 24, 8
+    SLICE   L1_S4, st_S1, 32, 8
+    SLICE   L1_S5, st_S1, 40, 8
+    SLICE   L1_S6, st_S1, 48, 8
+    SLICE   L1_S7, st_S1, 56, 8
+    SLICE   L1_r0, L1_r, 0, 8
+    SLICE   L1_k0, L1_kk, 0, 8
+    SLICE   L1_v0, L1_vv, 0, 8
+    SLICE   L1_r1, L1_r, 8, 8
+    SLICE   L1_k1, L1_kk, 8, 8
+    SLICE   L1_v1, L1_vv, 8, 8
+    SLICE   L1_r2, L1_r, 16, 8
+    SLICE   L1_k2, L1_kk, 16, 8
+    SLICE   L1_v2, L1_vv, 16, 8
+    SLICE   L1_r3, L1_r, 24, 8
+    SLICE   L1_k3, L1_kk, 24, 8
+    SLICE   L1_v3, L1_vv, 24, 8
+    SLICE   L1_r4, L1_r, 32, 8
+    SLICE   L1_k4, L1_kk, 32, 8
+    SLICE   L1_v4, L1_vv, 32, 8
+    SLICE   L1_r5, L1_r, 40, 8
+    SLICE   L1_k5, L1_kk, 40, 8
+    SLICE   L1_v5, L1_vv, 40, 8
+    SLICE   L1_r6, L1_r, 48, 8
+    SLICE   L1_k6, L1_kk, 48, 8
+    SLICE   L1_v6, L1_vv, 48, 8
+    SLICE   L1_r7, L1_r, 56, 8
+    SLICE   L1_k7, L1_kk, 56, 8
+    SLICE   L1_v7, L1_vv, 56, 8
+    OUTER   L1_S0, L1_v0, L1_k0
+    OUTER   L1_S1, L1_v1, L1_k1
+    OUTER   L1_S2, L1_v2, L1_k2
+    OUTER   L1_S3, L1_v3, L1_k3
+    OUTER   L1_S4, L1_v4, L1_k4
+    OUTER   L1_S5, L1_v5, L1_k5
+    OUTER   L1_S6, L1_v6, L1_k6
+    OUTER   L1_S7, L1_v7, L1_k7
+    WRITECOL st_S1, L1_S0, 0
+    WRITECOL st_S1, L1_S1, 8
+    WRITECOL st_S1, L1_S2, 16
+    WRITECOL st_S1, L1_S3, 24
+    WRITECOL st_S1, L1_S4, 32
+    WRITECOL st_S1, L1_S5, 40
+    WRITECOL st_S1, L1_S6, 48
+    WRITECOL st_S1, L1_S7, 56
+
+    ; ---- o[h] = S[h] @ r[h] : 默认 NT 取 B=r_h[1,D] ⇒ C[D,1]=S_h·r_h^T ----
+    GEMM    L1_o0c, L1_S0, L1_r0
+    GEMM    L1_o1c, L1_S1, L1_r1
+    GEMM    L1_o2c, L1_S2, L1_r2
+    GEMM    L1_o3c, L1_S3, L1_r3
+    GEMM    L1_o4c, L1_S4, L1_r4
+    GEMM    L1_o5c, L1_S5, L1_r5
+    GEMM    L1_o6c, L1_S6, L1_r6
+    GEMM    L1_o7c, L1_S7, L1_r7
+    TRANSPOSE L1_oh0, L1_o0c
+    TRANSPOSE L1_oh1, L1_o1c
+    TRANSPOSE L1_oh2, L1_o2c
+    TRANSPOSE L1_oh3, L1_o3c
+    TRANSPOSE L1_oh4, L1_o4c
+    TRANSPOSE L1_oh5, L1_o5c
+    TRANSPOSE L1_oh6, L1_o6c
+    TRANSPOSE L1_oh7, L1_o7c
+    CONCAT  L1_t1, L1_oh0, L1_oh1
+    CONCAT  L1_t2, L1_t1, L1_oh2
+    CONCAT  L1_t3, L1_t2, L1_oh3
+    CONCAT  L1_t4, L1_t3, L1_oh4
+    CONCAT  L1_t5, L1_t4, L1_oh5
+    CONCAT  L1_t6, L1_t5, L1_oh6
+    CONCAT  L1_ocat, L1_t6, L1_oh7
+
+    ; ---- out = ln(outs); x2 = x + o_w(out) ----
+    LN      L1_obs, L1_ocat, l1_tmln_g, l1_tmln_b
+    GEMM    L1_tmo, L1_obs, l1_tm_Wo
+    EWADD   L1_x2, L0_out, L1_tmo
+
+    ; ---- ChannelMixing(FFN) ----
+    LN      L1_x3, L1_x2, l1_ln2_g, l1_ln2_b
+    ; g = x3 + (x_prev - x3) ⊙ x_k   ← 用**未 LN 的块级 x_prev**
+    EWSUB   L1_gg, st_xprev1, L1_x3
+    EWMUL   L1_gg, L1_gg, l1_cm_xk
+    EWADD   L1_gg, L1_x3, L1_gg
+    GEMM    L1_gk, L1_gg, l1_cm_Wkey
+    ACT     L1_gk, L1_gk, relu2
+    GEMM    L1_gv, L1_gk, l1_cm_Wval
+    ; ffn_norm_mode='scale'：逐通道 gamma（恒等初始）
+    EWMUL   L1_gv, L1_gv, l1_cmln_g
+    EWADD   L1_out, L1_x2, L1_gv
+
+    ; ---- 推进本层 x_prev ← 块输出（源码 states[1][0].copy_(x[0,-1])）----
+    COPY    st_xprev1, L1_out
+
+    ; ================= 第 2 层（ESERNNBlock）=================
+    ; 本层独立的 x_prev（源码 states[2][0]），跨 step 由块输出推进
+    LN      L2_x1, L1_out, l2_ln1_g, l2_ln1_b
+    EWSUB   L2_xx, st_xprev2, L2_x1
+
+    ; ---- TimeMixing: r / k / v ----
+    EWMUL   L2_g1, L2_xx, l2_tm_xr
+    EWADD   L2_g1, L2_x1, L2_g1
+    GEMM    L2_r, L2_g1, l2_tm_Wr
+    ACT     L2_r, L2_r, sigmoid
+    EWMUL   L2_g2, L2_xx, l2_tm_xk
+    EWADD   L2_g2, L2_x1, L2_g2
+    GEMM    L2_kk, L2_g2, l2_tm_Wk
+    EWMUL   L2_g3, L2_xx, l2_tm_xv
+    EWADD   L2_g3, L2_x1, L2_g3
+    GEMM    L2_vv, L2_g3, l2_tm_Wv
+
+    ; ---- decay[h] = exp(-exp(w0[h] + tanh((x1 + xx⊙x_w)@w1)@w2)) ----
+    EWMUL   L2_g4, L2_xx, l2_tm_xw
+    EWADD   L2_g4, L2_x1, L2_g4
+    ; w1/w2 是 nn.Parameter（布局 [H,DH]/[DH,H]，与 nn.Linear 相反）→ 用转置副本
+    GEMM    L2_gd, L2_g4, l2_tm_w1pT
+    ACT     L2_gd, L2_gd, tanh
+    GEMM    L2_om, L2_gd, l2_tm_w2pT
+    TRANSPOSE L2_w0row, l2_tm_w0col
+    EWADD   L2_om, L2_om, L2_w0row
+    EXP     L2_dec, L2_om
+    NEG     L2_dec, L2_dec
+    EXP     L2_dec, L2_dec
+
+    ; ---- per-head 标量 decay：取每 head 第 0 通道，复制 D 份后按列缩放 st_S ----
+    SLICE   L2_e0, L2_dec, 0, 1
+    SLICE   L2_e1, L2_dec, 8, 1
+    SLICE   L2_e2, L2_dec, 16, 1
+    SLICE   L2_e3, L2_dec, 24, 1
+    SLICE   L2_e4, L2_dec, 32, 1
+    SLICE   L2_e5, L2_dec, 40, 1
+    SLICE   L2_e6, L2_dec, 48, 1
+    SLICE   L2_e7, L2_dec, 56, 1
+    SHAPE   L2_f0,          1, 8
+    SHAPE   L2_f1,          1, 8
+    SHAPE   L2_f2,          1, 8
+    SHAPE   L2_f3,          1, 8
+    SHAPE   L2_f4,          1, 8
+    SHAPE   L2_f5,          1, 8
+    SHAPE   L2_f6,          1, 8
+    SHAPE   L2_f7,          1, 8
+    SHAPE   L2_e0,          1, 1
+    SHAPE   L2_e1,          1, 1
+    SHAPE   L2_e2,          1, 1
+    SHAPE   L2_e3,          1, 1
+    SHAPE   L2_e4,          1, 1
+    SHAPE   L2_e5,          1, 1
+    SHAPE   L2_e6,          1, 1
+    SHAPE   L2_e7,          1, 1
+    SHAPE   L2_hc2,     1, 24
+    SHAPE   L2_hc3,     1, 32
+    SHAPE   L2_hc4,     1, 40
+    SHAPE   L2_hc5,     1, 48
+    SHAPE   L2_hc6,     1, 56
+    SHAPE   L2_hdec,    1, 64
+    GEMM    L2_f0, L2_e0, one_r8
+    GEMM    L2_f1, L2_e1, one_r8
+    GEMM    L2_f2, L2_e2, one_r8
+    GEMM    L2_f3, L2_e3, one_r8
+    GEMM    L2_f4, L2_e4, one_r8
+    GEMM    L2_f5, L2_e5, one_r8
+    GEMM    L2_f6, L2_e6, one_r8
+    GEMM    L2_f7, L2_e7, one_r8
+    CONCAT  L2_hc1, L2_f0, L2_f1
+    CONCAT  L2_hc2, L2_hc1, L2_f2
+    CONCAT  L2_hc3, L2_hc2, L2_f3
+    CONCAT  L2_hc4, L2_hc3, L2_f4
+    CONCAT  L2_hc5, L2_hc4, L2_f5
+    CONCAT  L2_hc6, L2_hc5, L2_f6
+    CONCAT  L2_hdec, L2_hc6, L2_f7
+    ; hdec[1,HD] 每 head 的 D 个通道都是该 head 的 decay 标量
+    ; st_S2[D, NC*D] 按列缩放：列 j 的 head 是 j//D，命中「[M,N]op[1,N]」列广播
+    EWMUL   st_S2, st_S2, L2_hdec
+
+    ; ---- 逐 head 外积写入: S[h] += v[h] ⊗ k[h] ----
+    ; 切片 → 独立算 → WRITECOL 写回（OUTER 是原地累加，不能直接在 st_S 上做）
+    SLICE   L2_S0, st_S2, 0, 8
+    SLICE   L2_S1, st_S2, 8, 8
+    SLICE   L2_S2, st_S2, 16, 8
+    SLICE   L2_S3, st_S2, 24, 8
+    SLICE   L2_S4, st_S2, 32, 8
+    SLICE   L2_S5, st_S2, 40, 8
+    SLICE   L2_S6, st_S2, 48, 8
+    SLICE   L2_S7, st_S2, 56, 8
+    SLICE   L2_r0, L2_r, 0, 8
+    SLICE   L2_k0, L2_kk, 0, 8
+    SLICE   L2_v0, L2_vv, 0, 8
+    SLICE   L2_r1, L2_r, 8, 8
+    SLICE   L2_k1, L2_kk, 8, 8
+    SLICE   L2_v1, L2_vv, 8, 8
+    SLICE   L2_r2, L2_r, 16, 8
+    SLICE   L2_k2, L2_kk, 16, 8
+    SLICE   L2_v2, L2_vv, 16, 8
+    SLICE   L2_r3, L2_r, 24, 8
+    SLICE   L2_k3, L2_kk, 24, 8
+    SLICE   L2_v3, L2_vv, 24, 8
+    SLICE   L2_r4, L2_r, 32, 8
+    SLICE   L2_k4, L2_kk, 32, 8
+    SLICE   L2_v4, L2_vv, 32, 8
+    SLICE   L2_r5, L2_r, 40, 8
+    SLICE   L2_k5, L2_kk, 40, 8
+    SLICE   L2_v5, L2_vv, 40, 8
+    SLICE   L2_r6, L2_r, 48, 8
+    SLICE   L2_k6, L2_kk, 48, 8
+    SLICE   L2_v6, L2_vv, 48, 8
+    SLICE   L2_r7, L2_r, 56, 8
+    SLICE   L2_k7, L2_kk, 56, 8
+    SLICE   L2_v7, L2_vv, 56, 8
+    OUTER   L2_S0, L2_v0, L2_k0
+    OUTER   L2_S1, L2_v1, L2_k1
+    OUTER   L2_S2, L2_v2, L2_k2
+    OUTER   L2_S3, L2_v3, L2_k3
+    OUTER   L2_S4, L2_v4, L2_k4
+    OUTER   L2_S5, L2_v5, L2_k5
+    OUTER   L2_S6, L2_v6, L2_k6
+    OUTER   L2_S7, L2_v7, L2_k7
+    WRITECOL st_S2, L2_S0, 0
+    WRITECOL st_S2, L2_S1, 8
+    WRITECOL st_S2, L2_S2, 16
+    WRITECOL st_S2, L2_S3, 24
+    WRITECOL st_S2, L2_S4, 32
+    WRITECOL st_S2, L2_S5, 40
+    WRITECOL st_S2, L2_S6, 48
+    WRITECOL st_S2, L2_S7, 56
+
+    ; ---- o[h] = S[h] @ r[h] : 默认 NT 取 B=r_h[1,D] ⇒ C[D,1]=S_h·r_h^T ----
+    GEMM    L2_o0c, L2_S0, L2_r0
+    GEMM    L2_o1c, L2_S1, L2_r1
+    GEMM    L2_o2c, L2_S2, L2_r2
+    GEMM    L2_o3c, L2_S3, L2_r3
+    GEMM    L2_o4c, L2_S4, L2_r4
+    GEMM    L2_o5c, L2_S5, L2_r5
+    GEMM    L2_o6c, L2_S6, L2_r6
+    GEMM    L2_o7c, L2_S7, L2_r7
+    TRANSPOSE L2_oh0, L2_o0c
+    TRANSPOSE L2_oh1, L2_o1c
+    TRANSPOSE L2_oh2, L2_o2c
+    TRANSPOSE L2_oh3, L2_o3c
+    TRANSPOSE L2_oh4, L2_o4c
+    TRANSPOSE L2_oh5, L2_o5c
+    TRANSPOSE L2_oh6, L2_o6c
+    TRANSPOSE L2_oh7, L2_o7c
+    CONCAT  L2_t1, L2_oh0, L2_oh1
+    CONCAT  L2_t2, L2_t1, L2_oh2
+    CONCAT  L2_t3, L2_t2, L2_oh3
+    CONCAT  L2_t4, L2_t3, L2_oh4
+    CONCAT  L2_t5, L2_t4, L2_oh5
+    CONCAT  L2_t6, L2_t5, L2_oh6
+    CONCAT  L2_ocat, L2_t6, L2_oh7
+
+    ; ---- out = ln(outs); x2 = x + o_w(out) ----
+    LN      L2_obs, L2_ocat, l2_tmln_g, l2_tmln_b
+    GEMM    L2_tmo, L2_obs, l2_tm_Wo
+    EWADD   L2_x2, L1_out, L2_tmo
+
+    ; ---- ChannelMixing(FFN) ----
+    LN      L2_x3, L2_x2, l2_ln2_g, l2_ln2_b
+    ; g = x3 + (x_prev - x3) ⊙ x_k   ← 用**未 LN 的块级 x_prev**
+    EWSUB   L2_gg, st_xprev2, L2_x3
+    EWMUL   L2_gg, L2_gg, l2_cm_xk
+    EWADD   L2_gg, L2_x3, L2_gg
+    GEMM    L2_gk, L2_gg, l2_cm_Wkey
+    ACT     L2_gk, L2_gk, relu2
+    GEMM    L2_gv, L2_gk, l2_cm_Wval
+    ; ffn_norm_mode='scale'：逐通道 gamma（恒等初始）
+    EWMUL   L2_gv, L2_gv, l2_cmln_g
+    EWADD   L2_out, L2_x2, L2_gv
+
+    ; ---- 推进本层 x_prev ← 块输出（源码 states[2][0].copy_(x[0,-1])）----
+    COPY    st_xprev2, L2_out
+
+    ; ================= 第 3 层（ESERNNBlock）=================
+    ; 本层独立的 x_prev（源码 states[3][0]），跨 step 由块输出推进
+    LN      L3_x1, L2_out, l3_ln1_g, l3_ln1_b
+    EWSUB   L3_xx, st_xprev3, L3_x1
+
+    ; ---- TimeMixing: r / k / v ----
+    EWMUL   L3_g1, L3_xx, l3_tm_xr
+    EWADD   L3_g1, L3_x1, L3_g1
+    GEMM    L3_r, L3_g1, l3_tm_Wr
+    ACT     L3_r, L3_r, sigmoid
+    EWMUL   L3_g2, L3_xx, l3_tm_xk
+    EWADD   L3_g2, L3_x1, L3_g2
+    GEMM    L3_kk, L3_g2, l3_tm_Wk
+    EWMUL   L3_g3, L3_xx, l3_tm_xv
+    EWADD   L3_g3, L3_x1, L3_g3
+    GEMM    L3_vv, L3_g3, l3_tm_Wv
+
+    ; ---- decay[h] = exp(-exp(w0[h] + tanh((x1 + xx⊙x_w)@w1)@w2)) ----
+    EWMUL   L3_g4, L3_xx, l3_tm_xw
+    EWADD   L3_g4, L3_x1, L3_g4
+    ; w1/w2 是 nn.Parameter（布局 [H,DH]/[DH,H]，与 nn.Linear 相反）→ 用转置副本
+    GEMM    L3_gd, L3_g4, l3_tm_w1pT
+    ACT     L3_gd, L3_gd, tanh
+    GEMM    L3_om, L3_gd, l3_tm_w2pT
+    TRANSPOSE L3_w0row, l3_tm_w0col
+    EWADD   L3_om, L3_om, L3_w0row
+    EXP     L3_dec, L3_om
+    NEG     L3_dec, L3_dec
+    EXP     L3_dec, L3_dec
+
+    ; ---- per-head 标量 decay：取每 head 第 0 通道，复制 D 份后按列缩放 st_S ----
+    SLICE   L3_e0, L3_dec, 0, 1
+    SLICE   L3_e1, L3_dec, 8, 1
+    SLICE   L3_e2, L3_dec, 16, 1
+    SLICE   L3_e3, L3_dec, 24, 1
+    SLICE   L3_e4, L3_dec, 32, 1
+    SLICE   L3_e5, L3_dec, 40, 1
+    SLICE   L3_e6, L3_dec, 48, 1
+    SLICE   L3_e7, L3_dec, 56, 1
+    SHAPE   L3_f0,          1, 8
+    SHAPE   L3_f1,          1, 8
+    SHAPE   L3_f2,          1, 8
+    SHAPE   L3_f3,          1, 8
+    SHAPE   L3_f4,          1, 8
+    SHAPE   L3_f5,          1, 8
+    SHAPE   L3_f6,          1, 8
+    SHAPE   L3_f7,          1, 8
+    SHAPE   L3_e0,          1, 1
+    SHAPE   L3_e1,          1, 1
+    SHAPE   L3_e2,          1, 1
+    SHAPE   L3_e3,          1, 1
+    SHAPE   L3_e4,          1, 1
+    SHAPE   L3_e5,          1, 1
+    SHAPE   L3_e6,          1, 1
+    SHAPE   L3_e7,          1, 1
+    SHAPE   L3_hc2,     1, 24
+    SHAPE   L3_hc3,     1, 32
+    SHAPE   L3_hc4,     1, 40
+    SHAPE   L3_hc5,     1, 48
+    SHAPE   L3_hc6,     1, 56
+    SHAPE   L3_hdec,    1, 64
+    GEMM    L3_f0, L3_e0, one_r8
+    GEMM    L3_f1, L3_e1, one_r8
+    GEMM    L3_f2, L3_e2, one_r8
+    GEMM    L3_f3, L3_e3, one_r8
+    GEMM    L3_f4, L3_e4, one_r8
+    GEMM    L3_f5, L3_e5, one_r8
+    GEMM    L3_f6, L3_e6, one_r8
+    GEMM    L3_f7, L3_e7, one_r8
+    CONCAT  L3_hc1, L3_f0, L3_f1
+    CONCAT  L3_hc2, L3_hc1, L3_f2
+    CONCAT  L3_hc3, L3_hc2, L3_f3
+    CONCAT  L3_hc4, L3_hc3, L3_f4
+    CONCAT  L3_hc5, L3_hc4, L3_f5
+    CONCAT  L3_hc6, L3_hc5, L3_f6
+    CONCAT  L3_hdec, L3_hc6, L3_f7
+    ; hdec[1,HD] 每 head 的 D 个通道都是该 head 的 decay 标量
+    ; st_S3[D, NC*D] 按列缩放：列 j 的 head 是 j//D，命中「[M,N]op[1,N]」列广播
+    EWMUL   st_S3, st_S3, L3_hdec
+
+    ; ---- 逐 head 外积写入: S[h] += v[h] ⊗ k[h] ----
+    ; 切片 → 独立算 → WRITECOL 写回（OUTER 是原地累加，不能直接在 st_S 上做）
+    SLICE   L3_S0, st_S3, 0, 8
+    SLICE   L3_S1, st_S3, 8, 8
+    SLICE   L3_S2, st_S3, 16, 8
+    SLICE   L3_S3, st_S3, 24, 8
+    SLICE   L3_S4, st_S3, 32, 8
+    SLICE   L3_S5, st_S3, 40, 8
+    SLICE   L3_S6, st_S3, 48, 8
+    SLICE   L3_S7, st_S3, 56, 8
+    SLICE   L3_r0, L3_r, 0, 8
+    SLICE   L3_k0, L3_kk, 0, 8
+    SLICE   L3_v0, L3_vv, 0, 8
+    SLICE   L3_r1, L3_r, 8, 8
+    SLICE   L3_k1, L3_kk, 8, 8
+    SLICE   L3_v1, L3_vv, 8, 8
+    SLICE   L3_r2, L3_r, 16, 8
+    SLICE   L3_k2, L3_kk, 16, 8
+    SLICE   L3_v2, L3_vv, 16, 8
+    SLICE   L3_r3, L3_r, 24, 8
+    SLICE   L3_k3, L3_kk, 24, 8
+    SLICE   L3_v3, L3_vv, 24, 8
+    SLICE   L3_r4, L3_r, 32, 8
+    SLICE   L3_k4, L3_kk, 32, 8
+    SLICE   L3_v4, L3_vv, 32, 8
+    SLICE   L3_r5, L3_r, 40, 8
+    SLICE   L3_k5, L3_kk, 40, 8
+    SLICE   L3_v5, L3_vv, 40, 8
+    SLICE   L3_r6, L3_r, 48, 8
+    SLICE   L3_k6, L3_kk, 48, 8
+    SLICE   L3_v6, L3_vv, 48, 8
+    SLICE   L3_r7, L3_r, 56, 8
+    SLICE   L3_k7, L3_kk, 56, 8
+    SLICE   L3_v7, L3_vv, 56, 8
+    OUTER   L3_S0, L3_v0, L3_k0
+    OUTER   L3_S1, L3_v1, L3_k1
+    OUTER   L3_S2, L3_v2, L3_k2
+    OUTER   L3_S3, L3_v3, L3_k3
+    OUTER   L3_S4, L3_v4, L3_k4
+    OUTER   L3_S5, L3_v5, L3_k5
+    OUTER   L3_S6, L3_v6, L3_k6
+    OUTER   L3_S7, L3_v7, L3_k7
+    WRITECOL st_S3, L3_S0, 0
+    WRITECOL st_S3, L3_S1, 8
+    WRITECOL st_S3, L3_S2, 16
+    WRITECOL st_S3, L3_S3, 24
+    WRITECOL st_S3, L3_S4, 32
+    WRITECOL st_S3, L3_S5, 40
+    WRITECOL st_S3, L3_S6, 48
+    WRITECOL st_S3, L3_S7, 56
+
+    ; ---- o[h] = S[h] @ r[h] : 默认 NT 取 B=r_h[1,D] ⇒ C[D,1]=S_h·r_h^T ----
+    GEMM    L3_o0c, L3_S0, L3_r0
+    GEMM    L3_o1c, L3_S1, L3_r1
+    GEMM    L3_o2c, L3_S2, L3_r2
+    GEMM    L3_o3c, L3_S3, L3_r3
+    GEMM    L3_o4c, L3_S4, L3_r4
+    GEMM    L3_o5c, L3_S5, L3_r5
+    GEMM    L3_o6c, L3_S6, L3_r6
+    GEMM    L3_o7c, L3_S7, L3_r7
+    TRANSPOSE L3_oh0, L3_o0c
+    TRANSPOSE L3_oh1, L3_o1c
+    TRANSPOSE L3_oh2, L3_o2c
+    TRANSPOSE L3_oh3, L3_o3c
+    TRANSPOSE L3_oh4, L3_o4c
+    TRANSPOSE L3_oh5, L3_o5c
+    TRANSPOSE L3_oh6, L3_o6c
+    TRANSPOSE L3_oh7, L3_o7c
+    CONCAT  L3_t1, L3_oh0, L3_oh1
+    CONCAT  L3_t2, L3_t1, L3_oh2
+    CONCAT  L3_t3, L3_t2, L3_oh3
+    CONCAT  L3_t4, L3_t3, L3_oh4
+    CONCAT  L3_t5, L3_t4, L3_oh5
+    CONCAT  L3_t6, L3_t5, L3_oh6
+    CONCAT  L3_ocat, L3_t6, L3_oh7
+
+    ; ---- out = ln(outs); x2 = x + o_w(out) ----
+    LN      L3_obs, L3_ocat, l3_tmln_g, l3_tmln_b
+    GEMM    L3_tmo, L3_obs, l3_tm_Wo
+    EWADD   L3_x2, L2_out, L3_tmo
+
+    ; ---- ChannelMixing(FFN) ----
+    LN      L3_x3, L3_x2, l3_ln2_g, l3_ln2_b
+    ; g = x3 + (x_prev - x3) ⊙ x_k   ← 用**未 LN 的块级 x_prev**
+    EWSUB   L3_gg, st_xprev3, L3_x3
+    EWMUL   L3_gg, L3_gg, l3_cm_xk
+    EWADD   L3_gg, L3_x3, L3_gg
+    GEMM    L3_gk, L3_gg, l3_cm_Wkey
+    ACT     L3_gk, L3_gk, relu2
+    GEMM    L3_gv, L3_gk, l3_cm_Wval
+    ; ffn_norm_mode='scale'：逐通道 gamma（恒等初始）
+    EWMUL   L3_gv, L3_gv, l3_cmln_g
+    EWADD   L3_out, L3_x2, L3_gv
+
+    ; ---- 推进本层 x_prev ← 块输出（源码 states[3][0].copy_(x[0,-1])）----
+    COPY    st_xprev3, L3_out
+
+    ; ================= 第 4 层（ESERNNBlock）=================
+    ; 本层独立的 x_prev（源码 states[4][0]），跨 step 由块输出推进
+    LN      L4_x1, L3_out, l4_ln1_g, l4_ln1_b
+    EWSUB   L4_xx, st_xprev4, L4_x1
+
+    ; ---- TimeMixing: r / k / v ----
+    EWMUL   L4_g1, L4_xx, l4_tm_xr
+    EWADD   L4_g1, L4_x1, L4_g1
+    GEMM    L4_r, L4_g1, l4_tm_Wr
+    ACT     L4_r, L4_r, sigmoid
+    EWMUL   L4_g2, L4_xx, l4_tm_xk
+    EWADD   L4_g2, L4_x1, L4_g2
+    GEMM    L4_kk, L4_g2, l4_tm_Wk
+    EWMUL   L4_g3, L4_xx, l4_tm_xv
+    EWADD   L4_g3, L4_x1, L4_g3
+    GEMM    L4_vv, L4_g3, l4_tm_Wv
+
+    ; ---- decay[h] = exp(-exp(w0[h] + tanh((x1 + xx⊙x_w)@w1)@w2)) ----
+    EWMUL   L4_g4, L4_xx, l4_tm_xw
+    EWADD   L4_g4, L4_x1, L4_g4
+    ; w1/w2 是 nn.Parameter（布局 [H,DH]/[DH,H]，与 nn.Linear 相反）→ 用转置副本
+    GEMM    L4_gd, L4_g4, l4_tm_w1pT
+    ACT     L4_gd, L4_gd, tanh
+    GEMM    L4_om, L4_gd, l4_tm_w2pT
+    TRANSPOSE L4_w0row, l4_tm_w0col
+    EWADD   L4_om, L4_om, L4_w0row
+    EXP     L4_dec, L4_om
+    NEG     L4_dec, L4_dec
+    EXP     L4_dec, L4_dec
+
+    ; ---- per-head 标量 decay：取每 head 第 0 通道，复制 D 份后按列缩放 st_S ----
+    SLICE   L4_e0, L4_dec, 0, 1
+    SLICE   L4_e1, L4_dec, 8, 1
+    SLICE   L4_e2, L4_dec, 16, 1
+    SLICE   L4_e3, L4_dec, 24, 1
+    SLICE   L4_e4, L4_dec, 32, 1
+    SLICE   L4_e5, L4_dec, 40, 1
+    SLICE   L4_e6, L4_dec, 48, 1
+    SLICE   L4_e7, L4_dec, 56, 1
+    SHAPE   L4_f0,          1, 8
+    SHAPE   L4_f1,          1, 8
+    SHAPE   L4_f2,          1, 8
+    SHAPE   L4_f3,          1, 8
+    SHAPE   L4_f4,          1, 8
+    SHAPE   L4_f5,          1, 8
+    SHAPE   L4_f6,          1, 8
+    SHAPE   L4_f7,          1, 8
+    SHAPE   L4_e0,          1, 1
+    SHAPE   L4_e1,          1, 1
+    SHAPE   L4_e2,          1, 1
+    SHAPE   L4_e3,          1, 1
+    SHAPE   L4_e4,          1, 1
+    SHAPE   L4_e5,          1, 1
+    SHAPE   L4_e6,          1, 1
+    SHAPE   L4_e7,          1, 1
+    SHAPE   L4_hc2,     1, 24
+    SHAPE   L4_hc3,     1, 32
+    SHAPE   L4_hc4,     1, 40
+    SHAPE   L4_hc5,     1, 48
+    SHAPE   L4_hc6,     1, 56
+    SHAPE   L4_hdec,    1, 64
+    GEMM    L4_f0, L4_e0, one_r8
+    GEMM    L4_f1, L4_e1, one_r8
+    GEMM    L4_f2, L4_e2, one_r8
+    GEMM    L4_f3, L4_e3, one_r8
+    GEMM    L4_f4, L4_e4, one_r8
+    GEMM    L4_f5, L4_e5, one_r8
+    GEMM    L4_f6, L4_e6, one_r8
+    GEMM    L4_f7, L4_e7, one_r8
+    CONCAT  L4_hc1, L4_f0, L4_f1
+    CONCAT  L4_hc2, L4_hc1, L4_f2
+    CONCAT  L4_hc3, L4_hc2, L4_f3
+    CONCAT  L4_hc4, L4_hc3, L4_f4
+    CONCAT  L4_hc5, L4_hc4, L4_f5
+    CONCAT  L4_hc6, L4_hc5, L4_f6
+    CONCAT  L4_hdec, L4_hc6, L4_f7
+    ; hdec[1,HD] 每 head 的 D 个通道都是该 head 的 decay 标量
+    ; st_S4[D, NC*D] 按列缩放：列 j 的 head 是 j//D，命中「[M,N]op[1,N]」列广播
+    EWMUL   st_S4, st_S4, L4_hdec
+
+    ; ---- 逐 head 外积写入: S[h] += v[h] ⊗ k[h] ----
+    ; 切片 → 独立算 → WRITECOL 写回（OUTER 是原地累加，不能直接在 st_S 上做）
+    SLICE   L4_S0, st_S4, 0, 8
+    SLICE   L4_S1, st_S4, 8, 8
+    SLICE   L4_S2, st_S4, 16, 8
+    SLICE   L4_S3, st_S4, 24, 8
+    SLICE   L4_S4, st_S4, 32, 8
+    SLICE   L4_S5, st_S4, 40, 8
+    SLICE   L4_S6, st_S4, 48, 8
+    SLICE   L4_S7, st_S4, 56, 8
+    SLICE   L4_r0, L4_r, 0, 8
+    SLICE   L4_k0, L4_kk, 0, 8
+    SLICE   L4_v0, L4_vv, 0, 8
+    SLICE   L4_r1, L4_r, 8, 8
+    SLICE   L4_k1, L4_kk, 8, 8
+    SLICE   L4_v1, L4_vv, 8, 8
+    SLICE   L4_r2, L4_r, 16, 8
+    SLICE   L4_k2, L4_kk, 16, 8
+    SLICE   L4_v2, L4_vv, 16, 8
+    SLICE   L4_r3, L4_r, 24, 8
+    SLICE   L4_k3, L4_kk, 24, 8
+    SLICE   L4_v3, L4_vv, 24, 8
+    SLICE   L4_r4, L4_r, 32, 8
+    SLICE   L4_k4, L4_kk, 32, 8
+    SLICE   L4_v4, L4_vv, 32, 8
+    SLICE   L4_r5, L4_r, 40, 8
+    SLICE   L4_k5, L4_kk, 40, 8
+    SLICE   L4_v5, L4_vv, 40, 8
+    SLICE   L4_r6, L4_r, 48, 8
+    SLICE   L4_k6, L4_kk, 48, 8
+    SLICE   L4_v6, L4_vv, 48, 8
+    SLICE   L4_r7, L4_r, 56, 8
+    SLICE   L4_k7, L4_kk, 56, 8
+    SLICE   L4_v7, L4_vv, 56, 8
+    OUTER   L4_S0, L4_v0, L4_k0
+    OUTER   L4_S1, L4_v1, L4_k1
+    OUTER   L4_S2, L4_v2, L4_k2
+    OUTER   L4_S3, L4_v3, L4_k3
+    OUTER   L4_S4, L4_v4, L4_k4
+    OUTER   L4_S5, L4_v5, L4_k5
+    OUTER   L4_S6, L4_v6, L4_k6
+    OUTER   L4_S7, L4_v7, L4_k7
+    WRITECOL st_S4, L4_S0, 0
+    WRITECOL st_S4, L4_S1, 8
+    WRITECOL st_S4, L4_S2, 16
+    WRITECOL st_S4, L4_S3, 24
+    WRITECOL st_S4, L4_S4, 32
+    WRITECOL st_S4, L4_S5, 40
+    WRITECOL st_S4, L4_S6, 48
+    WRITECOL st_S4, L4_S7, 56
+
+    ; ---- o[h] = S[h] @ r[h] : 默认 NT 取 B=r_h[1,D] ⇒ C[D,1]=S_h·r_h^T ----
+    GEMM    L4_o0c, L4_S0, L4_r0
+    GEMM    L4_o1c, L4_S1, L4_r1
+    GEMM    L4_o2c, L4_S2, L4_r2
+    GEMM    L4_o3c, L4_S3, L4_r3
+    GEMM    L4_o4c, L4_S4, L4_r4
+    GEMM    L4_o5c, L4_S5, L4_r5
+    GEMM    L4_o6c, L4_S6, L4_r6
+    GEMM    L4_o7c, L4_S7, L4_r7
+    TRANSPOSE L4_oh0, L4_o0c
+    TRANSPOSE L4_oh1, L4_o1c
+    TRANSPOSE L4_oh2, L4_o2c
+    TRANSPOSE L4_oh3, L4_o3c
+    TRANSPOSE L4_oh4, L4_o4c
+    TRANSPOSE L4_oh5, L4_o5c
+    TRANSPOSE L4_oh6, L4_o6c
+    TRANSPOSE L4_oh7, L4_o7c
+    CONCAT  L4_t1, L4_oh0, L4_oh1
+    CONCAT  L4_t2, L4_t1, L4_oh2
+    CONCAT  L4_t3, L4_t2, L4_oh3
+    CONCAT  L4_t4, L4_t3, L4_oh4
+    CONCAT  L4_t5, L4_t4, L4_oh5
+    CONCAT  L4_t6, L4_t5, L4_oh6
+    CONCAT  L4_ocat, L4_t6, L4_oh7
+
+    ; ---- out = ln(outs); x2 = x + o_w(out) ----
+    LN      L4_obs, L4_ocat, l4_tmln_g, l4_tmln_b
+    GEMM    L4_tmo, L4_obs, l4_tm_Wo
+    EWADD   L4_x2, L3_out, L4_tmo
+
+    ; ---- ChannelMixing(FFN) ----
+    LN      L4_x3, L4_x2, l4_ln2_g, l4_ln2_b
+    ; g = x3 + (x_prev - x3) ⊙ x_k   ← 用**未 LN 的块级 x_prev**
+    EWSUB   L4_gg, st_xprev4, L4_x3
+    EWMUL   L4_gg, L4_gg, l4_cm_xk
+    EWADD   L4_gg, L4_x3, L4_gg
+    GEMM    L4_gk, L4_gg, l4_cm_Wkey
+    ACT     L4_gk, L4_gk, relu2
+    GEMM    L4_gv, L4_gk, l4_cm_Wval
+    ; ffn_norm_mode='scale'：逐通道 gamma（恒等初始）
+    EWMUL   L4_gv, L4_gv, l4_cmln_g
+    EWADD   L4_out, L4_x2, L4_gv
+
+    ; ---- 推进本层 x_prev ← 块输出（源码 states[4][0].copy_(x[0,-1])）----
+    COPY    st_xprev4, L4_out
+
+    ; ================= 第 5 层（ESERNNBlock）=================
+    ; 本层独立的 x_prev（源码 states[5][0]），跨 step 由块输出推进
+    LN      L5_x1, L4_out, l5_ln1_g, l5_ln1_b
+    EWSUB   L5_xx, st_xprev5, L5_x1
+
+    ; ---- TimeMixing: r / k / v ----
+    EWMUL   L5_g1, L5_xx, l5_tm_xr
+    EWADD   L5_g1, L5_x1, L5_g1
+    GEMM    L5_r, L5_g1, l5_tm_Wr
+    ACT     L5_r, L5_r, sigmoid
+    EWMUL   L5_g2, L5_xx, l5_tm_xk
+    EWADD   L5_g2, L5_x1, L5_g2
+    GEMM    L5_kk, L5_g2, l5_tm_Wk
+    EWMUL   L5_g3, L5_xx, l5_tm_xv
+    EWADD   L5_g3, L5_x1, L5_g3
+    GEMM    L5_vv, L5_g3, l5_tm_Wv
+
+    ; ---- decay[h] = exp(-exp(w0[h] + tanh((x1 + xx⊙x_w)@w1)@w2)) ----
+    EWMUL   L5_g4, L5_xx, l5_tm_xw
+    EWADD   L5_g4, L5_x1, L5_g4
+    ; w1/w2 是 nn.Parameter（布局 [H,DH]/[DH,H]，与 nn.Linear 相反）→ 用转置副本
+    GEMM    L5_gd, L5_g4, l5_tm_w1pT
+    ACT     L5_gd, L5_gd, tanh
+    GEMM    L5_om, L5_gd, l5_tm_w2pT
+    TRANSPOSE L5_w0row, l5_tm_w0col
+    EWADD   L5_om, L5_om, L5_w0row
+    EXP     L5_dec, L5_om
+    NEG     L5_dec, L5_dec
+    EXP     L5_dec, L5_dec
+
+    ; ---- per-head 标量 decay：取每 head 第 0 通道，复制 D 份后按列缩放 st_S ----
+    SLICE   L5_e0, L5_dec, 0, 1
+    SLICE   L5_e1, L5_dec, 8, 1
+    SLICE   L5_e2, L5_dec, 16, 1
+    SLICE   L5_e3, L5_dec, 24, 1
+    SLICE   L5_e4, L5_dec, 32, 1
+    SLICE   L5_e5, L5_dec, 40, 1
+    SLICE   L5_e6, L5_dec, 48, 1
+    SLICE   L5_e7, L5_dec, 56, 1
+    SHAPE   L5_f0,          1, 8
+    SHAPE   L5_f1,          1, 8
+    SHAPE   L5_f2,          1, 8
+    SHAPE   L5_f3,          1, 8
+    SHAPE   L5_f4,          1, 8
+    SHAPE   L5_f5,          1, 8
+    SHAPE   L5_f6,          1, 8
+    SHAPE   L5_f7,          1, 8
+    SHAPE   L5_e0,          1, 1
+    SHAPE   L5_e1,          1, 1
+    SHAPE   L5_e2,          1, 1
+    SHAPE   L5_e3,          1, 1
+    SHAPE   L5_e4,          1, 1
+    SHAPE   L5_e5,          1, 1
+    SHAPE   L5_e6,          1, 1
+    SHAPE   L5_e7,          1, 1
+    SHAPE   L5_hc2,     1, 24
+    SHAPE   L5_hc3,     1, 32
+    SHAPE   L5_hc4,     1, 40
+    SHAPE   L5_hc5,     1, 48
+    SHAPE   L5_hc6,     1, 56
+    SHAPE   L5_hdec,    1, 64
+    GEMM    L5_f0, L5_e0, one_r8
+    GEMM    L5_f1, L5_e1, one_r8
+    GEMM    L5_f2, L5_e2, one_r8
+    GEMM    L5_f3, L5_e3, one_r8
+    GEMM    L5_f4, L5_e4, one_r8
+    GEMM    L5_f5, L5_e5, one_r8
+    GEMM    L5_f6, L5_e6, one_r8
+    GEMM    L5_f7, L5_e7, one_r8
+    CONCAT  L5_hc1, L5_f0, L5_f1
+    CONCAT  L5_hc2, L5_hc1, L5_f2
+    CONCAT  L5_hc3, L5_hc2, L5_f3
+    CONCAT  L5_hc4, L5_hc3, L5_f4
+    CONCAT  L5_hc5, L5_hc4, L5_f5
+    CONCAT  L5_hc6, L5_hc5, L5_f6
+    CONCAT  L5_hdec, L5_hc6, L5_f7
+    ; hdec[1,HD] 每 head 的 D 个通道都是该 head 的 decay 标量
+    ; st_S5[D, NC*D] 按列缩放：列 j 的 head 是 j//D，命中「[M,N]op[1,N]」列广播
+    EWMUL   st_S5, st_S5, L5_hdec
+
+    ; ---- 逐 head 外积写入: S[h] += v[h] ⊗ k[h] ----
+    ; 切片 → 独立算 → WRITECOL 写回（OUTER 是原地累加，不能直接在 st_S 上做）
+    SLICE   L5_S0, st_S5, 0, 8
+    SLICE   L5_S1, st_S5, 8, 8
+    SLICE   L5_S2, st_S5, 16, 8
+    SLICE   L5_S3, st_S5, 24, 8
+    SLICE   L5_S4, st_S5, 32, 8
+    SLICE   L5_S5, st_S5, 40, 8
+    SLICE   L5_S6, st_S5, 48, 8
+    SLICE   L5_S7, st_S5, 56, 8
+    SLICE   L5_r0, L5_r, 0, 8
+    SLICE   L5_k0, L5_kk, 0, 8
+    SLICE   L5_v0, L5_vv, 0, 8
+    SLICE   L5_r1, L5_r, 8, 8
+    SLICE   L5_k1, L5_kk, 8, 8
+    SLICE   L5_v1, L5_vv, 8, 8
+    SLICE   L5_r2, L5_r, 16, 8
+    SLICE   L5_k2, L5_kk, 16, 8
+    SLICE   L5_v2, L5_vv, 16, 8
+    SLICE   L5_r3, L5_r, 24, 8
+    SLICE   L5_k3, L5_kk, 24, 8
+    SLICE   L5_v3, L5_vv, 24, 8
+    SLICE   L5_r4, L5_r, 32, 8
+    SLICE   L5_k4, L5_kk, 32, 8
+    SLICE   L5_v4, L5_vv, 32, 8
+    SLICE   L5_r5, L5_r, 40, 8
+    SLICE   L5_k5, L5_kk, 40, 8
+    SLICE   L5_v5, L5_vv, 40, 8
+    SLICE   L5_r6, L5_r, 48, 8
+    SLICE   L5_k6, L5_kk, 48, 8
+    SLICE   L5_v6, L5_vv, 48, 8
+    SLICE   L5_r7, L5_r, 56, 8
+    SLICE   L5_k7, L5_kk, 56, 8
+    SLICE   L5_v7, L5_vv, 56, 8
+    OUTER   L5_S0, L5_v0, L5_k0
+    OUTER   L5_S1, L5_v1, L5_k1
+    OUTER   L5_S2, L5_v2, L5_k2
+    OUTER   L5_S3, L5_v3, L5_k3
+    OUTER   L5_S4, L5_v4, L5_k4
+    OUTER   L5_S5, L5_v5, L5_k5
+    OUTER   L5_S6, L5_v6, L5_k6
+    OUTER   L5_S7, L5_v7, L5_k7
+    WRITECOL st_S5, L5_S0, 0
+    WRITECOL st_S5, L5_S1, 8
+    WRITECOL st_S5, L5_S2, 16
+    WRITECOL st_S5, L5_S3, 24
+    WRITECOL st_S5, L5_S4, 32
+    WRITECOL st_S5, L5_S5, 40
+    WRITECOL st_S5, L5_S6, 48
+    WRITECOL st_S5, L5_S7, 56
+
+    ; ---- o[h] = S[h] @ r[h] : 默认 NT 取 B=r_h[1,D] ⇒ C[D,1]=S_h·r_h^T ----
+    GEMM    L5_o0c, L5_S0, L5_r0
+    GEMM    L5_o1c, L5_S1, L5_r1
+    GEMM    L5_o2c, L5_S2, L5_r2
+    GEMM    L5_o3c, L5_S3, L5_r3
+    GEMM    L5_o4c, L5_S4, L5_r4
+    GEMM    L5_o5c, L5_S5, L5_r5
+    GEMM    L5_o6c, L5_S6, L5_r6
+    GEMM    L5_o7c, L5_S7, L5_r7
+    TRANSPOSE L5_oh0, L5_o0c
+    TRANSPOSE L5_oh1, L5_o1c
+    TRANSPOSE L5_oh2, L5_o2c
+    TRANSPOSE L5_oh3, L5_o3c
+    TRANSPOSE L5_oh4, L5_o4c
+    TRANSPOSE L5_oh5, L5_o5c
+    TRANSPOSE L5_oh6, L5_o6c
+    TRANSPOSE L5_oh7, L5_o7c
+    CONCAT  L5_t1, L5_oh0, L5_oh1
+    CONCAT  L5_t2, L5_t1, L5_oh2
+    CONCAT  L5_t3, L5_t2, L5_oh3
+    CONCAT  L5_t4, L5_t3, L5_oh4
+    CONCAT  L5_t5, L5_t4, L5_oh5
+    CONCAT  L5_t6, L5_t5, L5_oh6
+    CONCAT  L5_ocat, L5_t6, L5_oh7
+
+    ; ---- out = ln(outs); x2 = x + o_w(out) ----
+    LN      L5_obs, L5_ocat, l5_tmln_g, l5_tmln_b
+    GEMM    L5_tmo, L5_obs, l5_tm_Wo
+    EWADD   L5_x2, L4_out, L5_tmo
+
+    ; ---- ChannelMixing(FFN) ----
+    LN      L5_x3, L5_x2, l5_ln2_g, l5_ln2_b
+    ; g = x3 + (x_prev - x3) ⊙ x_k   ← 用**未 LN 的块级 x_prev**
+    EWSUB   L5_gg, st_xprev5, L5_x3
+    EWMUL   L5_gg, L5_gg, l5_cm_xk
+    EWADD   L5_gg, L5_x3, L5_gg
+    GEMM    L5_gk, L5_gg, l5_cm_Wkey
+    ACT     L5_gk, L5_gk, relu2
+    GEMM    L5_gv, L5_gk, l5_cm_Wval
+    ; ffn_norm_mode='scale'：逐通道 gamma（恒等初始）
+    EWMUL   L5_gv, L5_gv, l5_cmln_g
+    EWADD   L5_out, L5_x2, L5_gv
+
+    ; ---- 推进本层 x_prev ← 块输出（源码 states[5][0].copy_(x[0,-1])）----
+    COPY    st_xprev5, L5_out
+
+    ; ---------- 输出头: logits = ln_out(x) @ E^T（tied embedding）----------
+    LN      xn, L5_out, lnout_g, lnout_b
+    GEMM    logits, xn, E
+
+    HALT

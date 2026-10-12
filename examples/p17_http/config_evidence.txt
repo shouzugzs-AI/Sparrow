@@ -1,0 +1,62 @@
+
+==============================================================================
+P17-P4 CONFIG CHECK -- is server/.cargo/config.toml read, or inert?
+==============================================================================
+workspace root : <repo>
+server dir     : <repo>/server
+config file    : <repo>/server/.cargo/config.toml (present)
+
+Cargo's rule, measured on this tree in the opposite direction: a
+config is read from the CWD upward and NOT merged from below. The
+engine build from the workspace root fails LNK1561 for exactly this
+reason (see tools/p17_http_size.py section 0).
+
+==============================================================================
+A. from workspace root   (cwd=<repo>)
+==============================================================================
+  $ cargo build --release -p vmlm-server --target x86_64-pc-windows-msvc --target-dir <repo>/target/t_p17_cfg_A
+  exit code = 0
+  size   = 421888 B
+  sha256 = 29f454c75986c48e63db0b2f1d9d2f0df3ba4a97f07fc66dd42d222288ebdf60
+  link succeeded -> the engine's /NODEFAULTLIB did NOT leak into
+  this std build (it would have failed with `unresolved external
+  symbol _beginthreadex` / `_errno` style errors).
+
+==============================================================================
+B. from server/   (cwd=<repo>/server)
+==============================================================================
+  $ cargo build --release -p vmlm-server --target x86_64-pc-windows-msvc --target-dir <repo>/target/t_p17_cfg_B
+  exit code = 0
+  size   = 421888 B
+  sha256 = 63b1e6f658f200dd7ab823475427901cace7709485fde71e6528099d79390f8f
+  link succeeded -> the engine's /NODEFAULTLIB did NOT leak into
+  this std build (it would have failed with `unresolved external
+  symbol _beginthreadex` / `_errno` style errors).
+
+==============================================================================
+VERDICT
+==============================================================================
+  A (root)     : 421888 B  29f454c75986c48e63db0b2f1d9d2f0df3ba4a97f07fc66dd42d222288ebdf60
+  B (server/)  : 421888 B  63b1e6f658f200dd7ab823475427901cace7709485fde71e6528099d79390f8f
+  raw sha256 identical : False
+  RSDS (PDB) at offset : 383980
+  differing bytes      : 20 stamp, 0 outside stamp regions
+  code+data identical  : True
+
+  => server/.cargo/config.toml does NOT change the generated code
+     or data on either build path. The raw sha256 disparity is the
+     linker's PE TimeDateStamp / PDB GUID, which differs between
+     ANY two links of the same source -- not evidence about the
+     config.
+
+     It is kept as DOCUMENTATION OF THE BOUNDARY: it states why the
+     engine's /NODEFAULTLIB must not be copied into a std crate,
+     and this script is the check that keeps the claim honest. If a
+     future edit makes the paths differ outside the stamp regions,
+     this script FAILS and the file has become load-bearing.
+
+==============================================================================
+SUMMARY
+==============================================================================
+  failed checks: 0
+  [PASS]

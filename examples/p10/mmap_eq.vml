@@ -1,0 +1,13 @@
+SHAPE x, 4, 32
+SHAPE W1, 64, 32
+SHAPE b1, 1, 64
+SHAPE W2, 16, 64
+SHAPE h1, 4, 64
+SHAPE a1, 4, 64
+SHAPE y, 4, 16
+GEMM h1, x, W1
+BIAS h1, b1
+ACT a1, h1, silu
+GEMM y, a1, W2
+PRINT y
+HALT

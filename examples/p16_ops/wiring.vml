@@ -1,0 +1,11 @@
+SHAPE y, 3, 1
+SHAPE off, 3, 1
+SHAPE srci, 2, 1
+SHAPE wv, 2, 1
+SHAPE xv, 3, 1
+SHAPE str, 2, 1
+SHAPE kk, 1, 1
+SHAPE sel, 2, 2
+    TOPK_BY_STRENGTH sel, str, kk
+    SPARSE_MATVEC y, off, srci, wv, xv
+    HALT

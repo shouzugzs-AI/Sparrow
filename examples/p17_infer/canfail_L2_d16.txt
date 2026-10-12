@@ -1,0 +1,31 @@
+﻿========================================================================
+P17 P1 CAN-FAIL AUDIT -- does each criterion actually fail when wrong?
+========================================================================
+dump = examples\p17_infer\dump_L2_d16_k08_k3_s3.bin   cfg: L=2 d=16 k0=8 k=3 seq=3
+
+--- CF-1: C1 (topology from PRNG) ---
+[PASS] CF-1a baseline (unmodified) => bad == 0  bad=0
+[PASS] CF-1b CAN-FAIL: one tampered src => bad > 0  bad=1 (tampered layer0[0][0]: 8 -> 9)
+
+--- CF-2: C2 (bitwise forward equality) ---
+[PASS] CF-2a baseline => bit_diffs == 0  bit_diffs=0
+[PASS] CF-2b CAN-FAIL: perturb a SELECTED weight => bit_diffs > 0  bit_diffs=32 (perturbed j=1)
+[PASS] CF-2c NEGATIVE CTL: perturb an UNSELECTED weight (all tokens) => bit_diffs stays 0  bit_diffs=0 (layer0 neuron0 conn3 unselected on all 3 tokens)
+
+--- CF-3: inject a REAL arithmetic change (rounding order) ---
+[PASS] CF-3 CAN-FAIL: f64-intermediate accumulation => C2 detects bit diffs  bit_diffs=24 (same algorithm, different rounding path)
+
+--- CF-4: C4a (perturbation of a SELECTED weight must be detected) ---
+[PASS] CF-4a baseline => C4a fires (changed_bits > 0)  changed_bits=1
+[PASS] CF-4b CAN-FAIL: if w is dropped from the output, C4a goes to 0 (detects the bug)  changed_bits=0 (with w ignored, perturbing w cannot be detected)
+
+--- CF-5: C4b (perturbation of an UNSELECTED weight must be invisible) ---
+[PASS] CF-5a baseline => C4b holds (changed_bits == 0)  changed_bits=0 (neuron0 conn3)
+[PASS] CF-5b CAN-FAIL: with NO skipping (all conns selected), C4b is violated  changed_bits=1 (proves C4b measures the skip, not an accident)
+
+========================================================================
+can-fail audit: checks=10 fail=0 unproven=0
+Interpretation: every PASS above is a criterion that DID turn red when
+given a known-wrong input. Any UNPROVEN item means the criterion could not
+be made to fail and therefore must not be reported as PASS.
+========================================================================

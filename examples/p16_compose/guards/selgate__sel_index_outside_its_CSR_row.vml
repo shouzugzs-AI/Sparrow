@@ -1,0 +1,17 @@
+SHAPE off, 5, 1
+SHAPE srci, 4, 1
+SHAPE sel, 4, 8
+SHAPE wv, 4, 1
+SHAPE xv, 4, 1
+SHAPE str, 4, 4
+SHAPE kk, 1, 1
+SHAPE y, 5, 1
+    COPY off, offc
+    COPY srci, srcc
+    COPY wv, wvc
+    COPY xv, xvc
+    COPY str, strc
+    COPY kk, k2c
+    TOPK_BY_STRENGTH sel, str, k2c, seg
+    SPARSE_MATVEC y, off, srci, wv, xv, sel, nnz, selgate
+    HALT

@@ -1,0 +1,55 @@
+; MNIST 训练：Linear(196->64) + ReLU + Linear(64->4) + 交叉熵
+;
+; 这是 P3 的核心示范：**反向传播也是指令流**，由脚本显式编写。
+; 引擎不做自动微分 —— 新架构只要把反向写清楚就能训练（白皮书 §6.2）。
+;
+; 本文件是「一个训练步」的完整指令流：
+;   前向 → 反向 → 优化器更新常量池
+; 由外层循环重复执行；训练只改常量池，**不重新 JIT**（需求 2 核心）。
+
+.section forward
+    ; ---- 前向 ----
+    SHAPE       h_pre, 1, 64
+    SHAPE       h,     1, 64
+    SHAPE       logits, 1, 4
+    SHAPE       clip_norm, 1, 1
+    SHAPE       hparams, 4, 1
+    GEMM        h_pre, x, W1
+    BIAS        h_pre, b1
+    ACT         h, h_pre, relu
+    GEMM        logits, h, W2
+    BIAS        logits, b2
+
+.section backward
+    ; ---- 梯度清零（每个训练步开始）----
+    ZERO        g_W1
+    ZERO        g_b1
+    ZERO        g_W2
+    ZERO        g_b2
+
+    ; ---- 损失：交叉熵 + softmax 反向，写 dlogits ----
+    SHAPE       dlogits, 1, 4
+    CE_BWD      logits, dlogits, y
+
+    ; ---- Linear2 反向 ----
+    GEMM_BWD_W  g_W2, dlogits, h
+    BIAS_BWD    g_b2, dlogits
+    SHAPE       dh, 1, 64
+    GEMM_BWD_X  dh, dlogits, W2
+
+    ; ---- ReLU 反向 ----
+    SHAPE       dh_pre, 1, 64
+    ACT_BWD     dh_pre, dh, h_pre, relu
+
+    ; ---- Linear1 反向 ----
+    GEMM_BWD_W  g_W1, dh_pre, x
+    BIAS_BWD    g_b1, dh_pre
+
+    ; ---- 梯度裁剪 + Adam 就地更新常量池 ----
+    CLIP_GRAD   g_W1, clip_norm
+    CLIP_GRAD   g_W2, clip_norm
+    ADAM        W1, g_W1, hparams
+    ADAM        b1, g_b1, hparams
+    ADAM        W2, g_W2, hparams
+    ADAM        b2, g_b2, hparams
+    HALT

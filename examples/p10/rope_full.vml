@@ -1,0 +1,6 @@
+SHAPE x, 8, 128
+SHAPE y, 8, 128
+SHAPE theta, 1, 1
+ROPE y, x, theta, 0
+PRINT y
+HALT

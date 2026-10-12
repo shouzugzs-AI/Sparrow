@@ -1,0 +1,111 @@
+; ESERNN 风格 RNN 单步（P4：状态槽 + OUTER 递归态）
+;
+; 这是 ESERNN core/ese_rnn.py 的数学核心，用 VMLM 指令集表达。
+; 关键点：
+;   - 递归态 st_S[D,D] 放在 **状态槽**（st_ 前缀）：跨 step 永续，前向不清零
+;   - S ← S ⊙ decay + v ⊗ k  用 EWMUL + OUTER 表达
+;   - 所有算子都是既有 opcode，引擎一行未改 —— 「新架构 = 新脚本」的兑现
+;
+; ============ 统一约定（重要，避免反复踩坑）============
+;   GEMM 语义固定为  C[M,N] = A[M,K] · B[N,K]^T   （对应 nn.Linear 权重 [N,K]）
+;   LayerNorm 沿「行」归一化，所以做 LN 的张量必须是 [1, K] 这种行向量；
+;   凡是 [K,1] 的列向量，LN 前必须先 TRANSPOSE 成行。
+;
+; 维度：H=32（隐层）, D=16（head-dim）, V=4（词表）
+
+.section state
+    ; 递归态：S[D,D]，跨 step 永续
+    SHAPE       st_S,      16, 16
+    ; 上一 step 的 h（行向量）
+    SHAPE       st_hprev,   1, 32
+
+.section forward
+    ; 外部输入：由驱动按 step 用 set_slot("x", ...) 填入 [1,32]。
+    ; 必须显式 SHAPE —— 否则 x 形状为 0x0，LN 归一化长度算成 0，
+    ; 整条前向静默退化成全 0（P8 重汇编时踩到）。
+    SHAPE       x,        1, 32
+    SHAPE       u,        1, 32
+    SHAPE       d,        1, 32
+    SHAPE       g32,      1, 32
+    SHAPE       r,        1, 16
+    SHAPE       k,        1, 16
+    SHAPE       v,        1, 16
+    SHAPE       decay,    1, 16
+    SHAPE       decayCol, 16, 1
+    SHAPE       gd,       1, 32
+    SHAPE       om,       1, 16
+    SHAPE       oCol,    16, 1
+    SHAPE       oRow,     1, 16
+    SHAPE       woCol,   32, 1
+    SHAPE       hpCol,   32, 1
+    SHAPE       hCol,    32, 1
+    SHAPE       h,        1, 32
+    SHAPE       logits,   1, 4
+
+    ; ---- u = LN(x) ----
+    LN          u, x, ln1_g, ln1_b
+
+    ; ---- d = h_prev - u ----
+    EWSUB       d, st_hprev, u
+
+    ; ---- r = sigmoid(W_r · (u + d ⊙ xr)) ----
+    EWMUL       g32, d, xr
+    EWADD       g32, u, g32
+    GEMM        r, g32, W_r
+    ACT         r, r, sigmoid
+
+    ; ---- k = W_k · (u + d ⊙ xk) ----
+    EWMUL       g32, d, xk
+    EWADD       g32, u, g32
+    GEMM        k, g32, W_k
+
+    ; ---- v = W_v · (u + d ⊙ xv) ----
+    EWMUL       g32, d, xv
+    EWADD       g32, u, g32
+    GEMM        v, g32, W_v
+
+    ; ---- decay = exp(-exp(W2d · tanh(W1d · (u + d ⊙ xw)) + w0)) ----
+    EWMUL       g32, d, xw
+    EWADD       g32, u, g32
+    GEMM        gd, g32, W1d
+    ACT         gd, gd, tanh
+    GEMM        om, gd, W2d
+    EWADD       om, om, w0
+    EXP         decay, om
+    NEG         decay, decay
+    EXP         decay, decay
+
+    ; ---- S ← S ⊙ decay + v ⊗ k ----
+    ; OUTER 语义：S[i,j] += v[i]·k[j]（行方向 v，列方向 k）
+    ; decay 沿 v 方向（行）作用，即 S[i,:] *= decay[i]。
+    ; EWMUL 的 [M,N]op[1,N] 是「列广播」，要按行缩放须把 decay 转成 [D,1] 列向量
+    ; （走 [M,N]op[M,1] 的行广播分支）。
+    TRANSPOSE   decayCol, decay
+    EWMUL       st_S, st_S, decayCol
+    OUTER       st_S, v, k
+
+    ; ---- o = LN(S · r) ----
+    ; GEMM 取 A=st_S (M=D,K=D)、B=r (N=1,K=D) ⇒ oCol[D,1] = S · r
+    GEMM        oCol, st_S, r
+    ; LN 要求行向量 → 转置后再 LN
+    TRANSPOSE   oRow, oCol
+    LN          oRow, oRow, ln_t_g, ln_t_b
+
+    ; ---- h = h_prev + W_o · o ----
+    ; GEMM 取 A=W_o (M=32,K=16)、B=oRow (N=1,K=16) ⇒ woCol[32,1] = W_o · o^T
+    GEMM        woCol, W_o, oRow
+    ; h_prev 转成列后相加，再转回行
+    TRANSPOSE   hpCol, st_hprev
+    EWADD       hCol, hpCol, woCol
+    TRANSPOSE   h, hCol
+
+    ; ---- 保存 h 供下一步 ----
+    COPY        st_hprev, h
+
+    ; ---- logits = LN(h) · E^T ----
+    ; LN 的输出缓冲区必须与 src 同宽（h 是 1x32），否则会越界写坏相邻槽。
+    ; 所以先归一化到 hNorm[1,32]，再与 E[4,32] 做 GEMM 得到 logits[1,4]。
+    SHAPE       hNorm,    1, 32
+    LN          hNorm, h, ln_out_g, ln_out_b
+    GEMM        logits, hNorm, E
+    HALT

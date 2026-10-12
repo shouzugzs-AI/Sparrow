@@ -1,0 +1,17 @@
+[package]
+name = "vmlm-trans"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+std = []
+
+[dependencies]
+vmlm-sys = { path = "../sys" }
+vmlm-tensor = { path = "../tensor" }
+vmlm-ops = { path = "../ops" }

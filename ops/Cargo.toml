@@ -1,0 +1,22 @@
+[package]
+name = "vmlm-ops"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+# [稠密分离 L4d-1] 纯稠密构建：不编译任何 conn-sparse 代码（conn.rs / b1_pure.rs 全部 gate 在下面）
+dense-only = []
+default = ["dense-only"]
+# std 版调度（region 切分 + 常驻池）：只有 trainer 启用；引擎路径不启用 ⇒ ops 保持 no_std
+thread-std = ["vmlm-sys/thread-std"]
+# L4-2：B1 稀疏模型原语（`conn` / `b1_pure`）—— 只有 trainer/models 启用
+conn-sparse = []
+
+[dependencies]
+vmlm-sys = { path = "../sys" }
+vmlm-tensor = { path = "../tensor" }

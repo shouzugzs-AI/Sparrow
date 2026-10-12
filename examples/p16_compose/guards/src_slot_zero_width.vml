@@ -1,0 +1,16 @@
+SHAPE off, 5, 1
+SHAPE srci, 4, 1
+SHAPE wv, 4, 1
+SHAPE xv, 4, 1
+SHAPE str, 4, 1
+SHAPE kk, 1, 1
+SHAPE sel, 4, 2
+SHAPE y, 5, 1
+    COPY off, offc
+    COPY srci, srcc
+    COPY wv, wvc
+    COPY xv, xvc
+    COPY kk, k2c
+    COPY str, strc
+    TOPK_BY_STRENGTH sel, zz, k2c
+    HALT

@@ -1,0 +1,14 @@
+final_norm:weights/final_norm.f32:1:1536:f32
+eps1:weights/eps1.f32:1:1:f32
+theta1:weights/theta1.f32:1:1:f32
+scale1:weights/scale1.f32:1:1:f32
+L0_in_ln:weights/L0_in_ln.f32:1:1536:f32
+L0_q:weights/L0_q.bf16:2048:1536:bf16
+L0_k:weights/L0_k.bf16:256:1536:bf16
+L0_v:weights/L0_v.bf16:256:1536:bf16
+L0_o:weights/L0_o.bf16:1536:2048:bf16
+L0_post_ln:weights/L0_post_ln.f32:1:1536:f32
+L0_gate:weights/L0_gate.bf16:4608:1536:bf16
+L0_up:weights/L0_up.bf16:4608:1536:bf16
+L0_down:weights/L0_down.bf16:1536:4608:bf16
+prompt_emb:weights/prompt_emb.f32:4:1536:f32

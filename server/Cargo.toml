@@ -1,0 +1,45 @@
+[package]
+name = "vmlm-server"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+# ============================================================================
+# P17-P4: the HTTP face of VMLM. THIS CRATE IS OUTSIDE THE ENGINE ON PURPOSE.
+# ============================================================================
+#
+# It is a `std` crate that links the normal CRT. The engine (`vmlm-runtime`) is
+# `no_std` + `/NODEFAULTLIB` and is built from a *different* crate with its own
+# `.cargo/config.toml` (runtime/.cargo/config.toml supplies /ENTRY:mainCRTStartup,
+# /NODEFAULTLIB, ...). Nothing here is a dependency of `vmlm-runtime`, so the
+# engine cannot grow because of this crate -- and task-5 requires that to be
+# MEASURED, not asserted (see tools/p17_http_verify.py, isolated target dirs).
+#
+# `vmlm-core` IS a dependency: requirement 5 of the task is that the server
+# really runs the engine (load a .vmb, fill a slot, run, read a slot). That is
+# the whole point of the "catalog"/"engine" path -- a server that returns a
+# canned string would not prove anything.
+
+[[bin]]
+name = "vmlm-server"
+path = "src/bin/vmlm_server.rs"
+
+[[bin]]
+name = "vmlm-cli"
+path = "src/bin/vmlm_cli.rs"
+
+[dependencies]
+# Default features (= `train`) so the CLI's `--gen` training loop and the
+# engine's `OP_*_BWD` path are available. The engine binary is unaffected:
+# features are per-crate-per-build, not global.
+#
+# P18-P1: `bpe` is now enabled so the server can link the REAL tokenizer
+# (core/src/bpe.rs) instead of the byte-level counter in src/tokenizer.rs.
+#
+# WHY THIS CANNOT COST THE ENGINE A BYTE: features are per-crate-per-build.
+# `vmlm-runtime` depends on `vmlm-core` with `default-features = false` and its
+# own explicit feature list, so enabling `bpe` HERE cannot reach the engine.
+# That is a structural argument, so it must be re-MEASURED after the change
+# with an isolated target dir (tools/build_all.ps1 already reports the size).
+vmlm-core = { path = "../core", features = ["bpe"] }

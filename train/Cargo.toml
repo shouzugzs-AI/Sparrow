@@ -1,0 +1,386 @@
+﻿[package]
+name = "vmlm-train"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[[bin]]
+name = "vmlm-train"
+path = "src/train_mnist.rs"
+
+[[bin]]
+name = "vmlm-gradcheck"
+path = "src/gradcheck.rs"
+
+[[bin]]
+name = "vmlm-graddump"
+path = "src/graddump.rs"
+
+[[bin]]
+name = "vmlm-rnn"
+path = "src/rnn_run.rs"
+
+[[bin]]
+name = "vmlm-attn"
+path = "src/attn_run.rs"
+
+[[bin]]
+name = "vmlm-sparse"
+path = "src/sparse_run.rs"
+
+# P7 反向算子数值梯度自检（成员 A）
+[[bin]]
+name = "vmlm-bwd-check"
+path = "src/bwd_check.rs"
+
+# P7 稀疏瘦 GEMM：正确性 + wall-clock（成员 E）
+[[bin]]
+name = "sparse_opt_run"
+path = "src/sparse_opt_run.rs"
+
+[dependencies]
+# [抽库 L3-1] attention 稠密块 / 通用原语
+vmlm-blocks = { path = "../blocks" }
+# [抽库 L4-1] B1 模型层
+vmlm-models = { path = "../models" }
+
+vmlm-ops = { path = "../ops", features = ["thread-std"] }
+vmlm-sys = { path = "../sys", features = ["thread-std"] }
+# conn-sparse is REQUIRED here (not optional): P17's training side reuses
+# conn_sparse::neuron_conn_src for the connection topology, because the task
+# explicitly forbids a second random source ("复用 conn_sparse.rs 的确定性
+# PRNG，不要另起一套随机数"). The engine's inference build does NOT enable it.
+vmlm-core = { path = "../core", features = ["train"] }
+
+# ===== P17: 稀疏连接架构（训练侧 T1/T2/T3）=====
+# 单层自检：初始化 + 只更新激活连接 + 与稠密参考对账。
+[[bin]]
+name = "vmlm-sparse-t1"
+path = "src/sparse_t1.rs"
+
+# P0 验收：24 层 x 1536 维训练 + 训练后统计（有效连接数分布 / 死神经元）。
+[[bin]]
+name = "vmlm-sparse-train"
+path = "src/sparse_train24.rs"
+
+# P17 P1 推理侧：24 层 x 1536 维**完整前向**（稀疏连接）+ B5 只存激活 KV
+[[bin]]
+name = "vmlm-sparse-infer"
+path = "src/sparse_infer24.rs"
+
+# ===== 成员 C（P7 ESERNN 迁移）独占段，勿动 =====
+[[bin]]
+name = "vmlm-eserNN"
+path = "src/eserNN_run.rs"
+# ===== 成员 C 段结束 =====
+
+# ===== P8：RNN 训练闭环（BPTT，成员 A2）=====
+[[bin]]
+name = "vmlm-rnn-train"
+path = "src/rnn_train.rs"
+
+# ===== P8：Transformer 训练闭环（成员 F）=====
+[[bin]]
+name = "vmlm-attn-train"
+path = "src/attn_train.rs"
+
+# ===== P9：ESERNN 训练闭环（BPTT，成员 I）=====
+[[bin]]
+name = "vmlm-eserNN-train"
+path = "src/eserNN_train.rs"
+
+# ===== P18：性能剖析探针 =====
+# 在向量化之前先测出「时间花在哪个 kernel」，而不是照着任务书的猜测去优化。
+# 见 src/profile_probe.rs 顶部的长注释（含为什么不直接改 trainer）。
+[[bin]]
+name = "vmlm-profile"
+path = "src/profile_probe.rs"
+
+# ===== P18 P0 验收：稀疏连接内核向量化（逐位对拍 + can-fail + 性能）=====
+[[bin]]
+name = "vmlm-p18-kernel"
+path = "src/p18_kernel_check.rs"
+
+# ===== P18 崩溃隔离探针（临时诊断用）=====
+[[bin]]
+name = "vmlm-p18-iso"
+path = "src/p18_iso.rs"
+
+# ===== P18-B：结构化稀疏 vs 随机稀疏（决定 QKV/Wo 该不该改稀疏）=====
+[[bin]]
+name = "vmlm-p18b"
+path = "src/p18b_struct_sparse.rs"
+
+# ===== P18-D：改为路径 B 之后的耗时分解（找出新的瓶颈）=====
+[[bin]]
+name = "vmlm-p18d"
+path = "src/p18d_breakdown.rs"
+
+# ===== P18-E：掩码 13 ns/连接的成因分解 =====
+[[bin]]
+name = "vmlm-p18e"
+path = "src/p18e_mask_cost.rs"
+
+# ===== P18-F：导出对拍失败的成因（拓扑 vs 权重）=====
+[[bin]]
+name = "vmlm-p18f"
+path = "src/p18f_export_diag.rs"
+
+# ===== B 基准对比（PATH: DENSE）=====
+# 用户要求「同参数量稠密实测 + 同结构稠密理论值，两个都报」。
+# 本探针真正调用 kernels::gemm_nt 并**同时**输出它走的分支，
+# 因为 P18-B §6 记录过「基线在某个形状下落到非 packed 内核 → 加速比不可比」。
+[[bin]]
+name = "vmlm-bench-baseline"
+path = "src/bench_baseline.rs"
+
+# gemm_nt 分支判定：用位模式证据（而非读判定式）确定实际走了哪条 kernel。
+[[bin]]
+name = "vmlm-branch-id"
+path = "src/bench_branch_id.rs"
+
+# ===== B1：Lead 的独立 B1 测量（PATH: B1）=====
+# 独立于 b1-builder 的实现，避免"探针与被测代码共享同一个 bug"。
+# 判据：A1 bit-exact / A2 零掩码 / A3 can-fail / A4 性能 / A5 反向 bit-exact
+[[bin]]
+name = "vmlm-lead-b1"
+path = "src/lead_b1_measure.rs"
+
+# ===== B1 对抗性复核（PATH: B1）=====
+# 6.76x 这个数字值得被试图推翻。逐条检验：是不是分支、是不是 gather、
+# 是不是 act[] 清零的假象、是不是循环被删。判据写在文件头。
+[[bin]]
+name = "vmlm-lead-b1-adv"
+path = "src/lead_b1_adversarial.rs"
+
+# ===== B1：纯稀疏全 k0 前向/反向（无 top-k、无掩码）验收 =====
+# 由 b1-builder 新增（仅追加，未改动以上任何段）。
+# A1 bit-exact vs compute_act_mask(k=k0)+sparse_accum / A2 零掩码证明 /
+# A3 can-fail / A4 QPC 性能 / A5 反向 bit-exact。
+[[bin]]
+name = "vmlm-b1-verify"
+path = "src/b1_verify.rs"
+
+# ===== B1 判据强度探针：A1 真的能抓到错误实现吗 =====
+# A1 报 bad=0 有两种可能：实现正确，或判据恒真。本探针把 6 种已知错误
+# 形态喂给同一段对拍代码，逐个确认它报 bad>0。
+[[bin]]
+name = "vmlm-b1-canfail"
+path = "src/b1_canfail.rs"
+
+# ===== B1 最小转译器验证（PATH: B1）=====
+# 由 trans-builder 新增（仅追加，未改动以上任何段）。
+# 转译器的发射原语在 trans/mod.rs，本驱动只做对照与计时。
+# 判据：bit-exact(f32::to_bits) vs 算子版 = 0 mismatch；NaN 边界可失败；
+#       算子版 vs 转译版 QPC 中位数耗时对比。
+[[bin]]
+name = "vmlm-trans-verify"
+path = "src/trans_verify.rs"
+
+# ===== B2：PER-ROW vs SHARED 选择（PATH: B2）=====
+# 用户裁决「先测两种再决定」。逐神经元独立选择 = d*k0*k 次比较；
+# 全层共享一次选择 = k0*k 次，与 d 脱钩。差 d 倍，就是 76.8x 能否兑现的分界。
+[[bin]]
+name = "vmlm-lead-b2-shared"
+path = "src/lead_b2_shared.rs"
+
+# ===== B1 剩余的 5.7x 去向（PATH: B1）=====
+# 同一批 30720 次乘加，换 4 种数据布局：f32 随机 / u32 随机 / 排序 / 稠密无 gather。
+# 用于回答「转译器能不能把 B1 推到理论值」——布局改动是编译器改不了的。
+[[bin]]
+name = "vmlm-lead-b1-gap"
+path = "src/lead_b1_gap.rs"
+
+# ===== src 索引 f32→u32：能否去掉 74.5% 的开销（PATH: B1）=====
+# 磁盘格式本来就是 u32（conn_sparse.rs:158），只有训练侧工作区存成 f32。
+# 判据：两种布局输出 bit-exact（0 mismatch）+ QPC 加速比。
+[[bin]]
+name = "vmlm-lead-b1-u32src"
+path = "src/lead_b1_u32src.rs"
+
+# ===== 向量化 gather：src=f32 vs src=u32（PATH: DENSE，bench-builder）=====
+# 复核 Lead 的 L1/L2（标量循环）推论能否外推到**已有向量化内核**
+# sparse_strength_row_avx2（kernels.rs:1681）。标量测出 74.5%，向量路径未必同比例：
+# cvttps2dq 一次产 8 个 i32，摊薄方式与标量 cvttss2si 不同。仅追加。
+[[bin]]
+name = "vmlm-vec-gather"
+path = "src/bench_vec_gather.rs"
+
+# ===== B2 正式验收（PATH: B2，b2-builder）=====
+# 在 Lead 的 vmlm-lead-b2-shared 原型测量基础上做正式实现与完整验收：
+# 实现落在 core/src/b2_topk.rs（模块 b2_topk，B2Mode::{PerRow,Shared}），
+# 本驱动只做对拍与计时。判据 A1-A7：
+#   A1 k=k0 时 per-row 与 shared 均与**手工契约参照**逐位相同（f32::to_bits），
+#      并交叉核对当前 b1_forward；另有一条 A1-REF 断言参照物自身自洽
+#   A2 k<k0 时给 max|diff| + mismatch 计数（不说"接近"）
+#   A3 开销占比（实测分解：强度/选择/累加）；per-row 达不到 5% 如实报并解释
+#   A4 选择是 O(k0) 不是 O(d) —— 比较次数计数器：per-row 随 d 线性、
+#      shared 被与 d 无关的常数上界卡住
+#   A5 QPC 中位数三方对比 + 防假零 consume/下界断言
+#   A6 can-fail：平局规则 > 改成 >= 必须改变幸存者（并改变输出位型）
+#   A7 can-fail：k=k0-1 时必须报 mismatch>0；且「把 |w*x| 当乘积」必须被抓到
+[[bin]]
+name = "vmlm-b2-verify"
+path = "src/b2_verify.rs"
+
+# ===== B1 向量化能到多少 ms/step（PATH: DENSE，bench-builder）=====
+# Lead 问：把 b1_forward（core/src/b1_pure.rs，全标量）向量化，实测能到多少？
+# 关键约束：b1_pure.rs 头部把累加顺序写成契约（单标量累加器、禁 8 路归约、
+# 首项直接赋值），A1 判据是 f32::to_bits 逐位比较。故测三版并同时报 bit-diff：
+#   S0 标量现状 / S1 向量gather+标量顺序累加(bit-exact) / S2 SIMD归约(分叉) / S3 天花板。
+# 仅追加。
+[[bin]]
+name = "vmlm-b1-vec"
+path = "src/bench_b1_vec.rs"
+
+# ===== S1 落地失败的诊断（PATH: B1）=====
+# 落地 S1（复用 sparse_strength_row_avx2 算乘积）后，两个探针对同一个
+# b1_forward 给出相反判定：Lead 的报 0/1536，b1-builder 的报 1536/1536。
+# 至少一个没在测它声称的东西。本探针直接测那个复用内核返回的是
+# |w*x| 还是 w*x —— 若带绝对值，则 S1 是符号级错误，必须回退。
+[[bin]]
+name = "vmlm-b1-s1diag"
+path = "src/lead_b1_s1diag.rs"
+
+# ===== 打包后 B1 是否已到硬件天花板（PATH: B1）=====
+# 打包把 B1 从 1.204 降到 0.469 ns/conn（2.52x），但每 MAC 仍比稠密 AVX2 慢
+# 16.4x。本探针分离三个原因：gather 成本 / 索引解码 / 无数据复用。
+# 同一批乘积，四种结构：M1 现状、M2 x 预展开（无 gather）、M3 无索引地板、
+# M4 带 8x 复用。用于判定「还剩多少是可打包拿到的」。
+[[bin]]
+name = "vmlm-b1-ceiling"
+path = "src/lead_b1_ceiling.rs"
+
+# ===== 调和 V1(0.167) vs M1(0.749) 的 4.5x 分歧（PATH: B1）=====
+# 两个探针声称测同一件事却差 4.5x ⇒ 至少一个没测它标签写的东西。
+# 分离三个候选原因：标量归约 / 每行 1KB 栈缓冲 / 循环提升。
+[[bin]]
+name = "vmlm-b1-reconcile"
+path = "src/lead_b1_reconcile.rs"
+
+# ===== Q4 审计：B1 vs 纯 d=20 稠密点积（PATH: B1）=====
+# 框架是「B1 = d=20 稠密点积 + 索引映射表」。若字面成立，两者耗时应接近，
+# 差值就是索引开销。本探针用四个变体把差值拆成：索引加载 / 散射 / 向量化开销。
+# 只读审计，不改 core/。
+[[bin]]
+name = "vmlm-b1-dot20"
+path = "src/lead_b1_dot20.rs"
+
+# ===== 对抗性复核：散射真的免费吗（PATH: B1）=====
+# Q4 报「索引加载 0.951 ns/conn，散射 0.007」。一个已知昂贵的东西测出来免费，
+# 按本项目纪律先怀疑探针：Q4 的「连续」变体读的是 20 float 小数组，
+# 与散射变体的 1536 float 大数组差的是【数组大小】而不只是散射。
+# 本探针把「数组大小」与「散射」彻底分开。
+[[bin]]
+name = "vmlm-b1-scatter"
+path = "src/lead_b1_scatter.rs"
+
+# ===== 索引开销可否消除（PATH: B1）=====
+# 两个探针一致测出：索引表占 B1-vs-dense 差距的 99%，散射仅 1%。
+# 本探针拆索引成本本身：f32->int 转换 / 索引加载 / 常量索引（消除加载的上限）。
+[[bin]]
+name = "vmlm-b1-indexcost"
+path = "src/lead_b1_indexcost.rs"
+
+# ===== 决定性问题：u32 src 在【已发布形态】上值多少（PATH: B1）=====
+# 两个口径给出矛盾预测：标量循环 3.8x，纯向量乘积 1.05x。
+# 已发布形态是混合体（向量乘积 + 标量归约），两个数都未必适用。
+# 且我已因跨口径外推错过一次（AUDIT 5.2）⇒ 直接测已发布形态。
+[[bin]]
+name = "vmlm-b1-shipped-u32"
+path = "src/lead_b1_shipped_u32.rs"
+
+# ===== 先测 epsilon，再选 epsilon（PATH: B1）=====
+# 验收标准从 bit-exact 放宽为「舍入级差异」。只有在知道差异到底是多少时，
+# 这个放宽才合法。先看数后选阈值 = 把容差变成橡皮图章。
+# 本探针给出单层与 24 层（残差流累积）两种口径的实测分布，并**故意不选** ε。
+[[bin]]
+name = "vmlm-b1-eps"
+path = "src/lead_b1_eps.rs"
+
+# ===== 生产 ε 验收：已发布 b1_forward vs 标量参考（PATH: B1）=====
+# 验收改为：确定性 + |simd-scalar| ≤ ε（ε 由实测数据定）。旧 bit-exact 判据
+# 降级为参考（仍报位差计数，便于发现回归）。另含 u32 镜像一致性断言。
+[[bin]]
+name = "vmlm-b1-prod-eps"
+path = "src/lead_b1_prod_eps.rs"
+
+# ===== sparse-B 速度验收 + tok/s（PATH: B1 / B2）=====
+# 用户要求：验收标准在"稀疏 B 的要求"之上**加上 tok/s**。
+# 本驱动补的是速度侧：一个真正计时的 24 层 x 5 矩阵 x T token 循环，
+# 结果表达成 tok/s（定义见文件头）。同时加入令牌分块路径的逐位判据
+# （C1 转置 / C2 内核 / C3 确定性 / C4 can-fail / C5 -0.0 契约 /
+#  C6 B2 SIMD 强度逐位 / C7 假零守卫 / C8 外推口径自检）。
+[[bin]]
+name = "vmlm-sparseb-tok"
+path = "src/sparseb_tok.rs"
+
+# ===== sparse-B 反向验收：P0 的 dx + P1 的融合（PATH: B1 / B2）=====
+# P0 接入训练器时暴露的前置缺口：B1 原来只有 dw，没有 dx —— 梯度传不到上一层。
+# 本驱动验收 `b1_backward_dx` / `b2_backward_dx` 与 P1 融合内核：
+#   E1 前向 ε / E2 dw 逐位 / E3 dx 逐位 / E4 融合逐位 / E5 can-fail /
+#   E6 确定性 / E7 ε vs 算子掩码版 / E8 P1 计时加速比 / E9 B2 SHARED dx。
+[[bin]]
+name = "vmlm-sparseb-bwd"
+path = "src/sparseb_bwd.rs"
+
+# ===== P1-b：源扇出统计（判决「转译器主动复用」值不值得做）=====
+# 任务书要求先做扇出统计：高扇出源 < 5% ⇒ 收益有限，先不做。
+# 关键是把「全局扇出」（均值 = k0 = 20，但**不可兑现**）与
+# 「窗口扇出」（连续 W 行内的不同源数 D，可省 = (C-D)/C）分开。
+[[bin]]
+name = "vmlm-sparseb-fanout"
+path = "src/sparseb_fanout.rs"
+
+# ===== P2-b：decode tok/s（batch=1，prefill/decode 分开报）=====
+# 常规引擎报的是 decode 口径（逐 token），而 P0/P1 的 tok/s 是 prefill 口径。
+# 本驱动报三个数：prefill / decode(有 KV-Cache) / decode(无 KV-Cache)，
+# 并在 ctx = 128 / 512 / 2048 上分别测，用于看长上下文衰减。
+[[bin]]
+name = "vmlm-sparseb-decode"
+path = "src/sparseb_decode.rs"
+
+# ===== P2-a：同算力稠密对照（PATH: DENSE-REF，对照物而非生产路径）=====
+# 回答「效率是否转化为智能」：d' = round(sqrt(d*k0)) = 175 的稠密 24 层模型，
+# 与 B1（d=1536, k0=20）每层参数量/每 token 乘加数匹配到 0.3% 以内；
+# **逐字复制** sparse_train24 的数据生成器与 split 种子 => 同数据、同步数。
+[[bin]]
+name = "vmlm-sparseb-dense24"
+path = "src/sparseb_dense24.rs"
+
+# ===== B1 Scaling Law 扫描（PATH: B1）=====
+# 固定 128 步：k0 扫描 / dim 扫描 / 定连接数扫描 + 同 MACs 稠密对照。
+# 数据来自 tools/b1_scaling_encode.py（MiniCPM 官方 tokenizer 编码，按文档 90/10）。
+# 模型是**单层** B1（emb → B1 层 → 残差 → lm_head），不含 BPE 代码。
+[[bin]]
+name = "vmlm-b1-scaling"
+path = "src/b1_scaling.rs"
+
+# ===== B1 完整训练（PATH: B1）=====
+# 专用训练器：dim=1536, k0=8, layers=24, **无残差**, Adam + warmup + cosine。
+# 含数值梯度自检（--gradcheck 1）、发散早停（记 diverged_at）、坡度拐平早停，
+# 并把 metrics.jsonl / loss_curve.csv / summary.json 与 docs 报告一起写出。
+[[bin]]
+name = "vmlm-b1-full"
+path = "src/b1_full_train.rs"
+
+# ===== 单文件分发：vmlm-chat（权重与词表用 include_bytes! 内嵌）=====
+# 源码与训练器共享（vmlm_chat.rs 里用 #[path] 引入 b1_full_train.rs），
+# 生成走的就是 --generate 那条路径；bin 只负责：内嵌数据 / 控制台 UTF-8 / 交互循环。
+[[bin]]
+name = "vmlm-chat"
+path = "src/bin/vmlm_chat.rs"
+
+# 注意：release 的编译配置（lto / strip / panic=abort / opt-level / codegen-units）
+# 必须写在**工作区根** Cargo.toml 的 [profile.release] 里才生效；
+# 写在本文件里 cargo 会警告 "profiles for the non root package will be ignored" 并忽略它。
+# 根 Cargo.toml 里已有：panic="abort" / opt-level=3 / lto=true(≡"fat") / codegen-units=1 / strip=true(≡"symbols")。
+
+[features]
+# [稠密分离 L4d-2] 默认 = 现在发布路径（含稀疏）；`--no-default-features --features dense-only`
+# 则完全不编译 conn-sparse（core/ops 两侧都不开）——用于证明"纯稠密能独立构建 + 训练"。
+default = ["conn-sparse"]
+conn-sparse = ["vmlm-core/conn-sparse", "vmlm-ops/conn-sparse"]
+dense-only = []

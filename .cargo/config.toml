@@ -1,0 +1,10 @@
+﻿# 全局构建配置
+#
+# 从 workspace 根 `cargo build --release` 时，Cargo 只读根目录的 config，
+# runtime/.cargo/config.toml 不生效 → vmlm-runtime 缺 /ENTRY 报 LNK1561。
+#
+# 这里把 no_std 的链接参数提到根。实测这些参数只影响「最终可执行文件」的链接：
+#   /ENTRY /SUBSYSTEM /NODEFAULTLIB 对 std 工具 crate 也生效，会与 CRT 冲突，
+# 因此必须让 std crate 排除它们 —— 做法是 std crate 各自目录下放 config 覆盖。
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+avx2,+fma"]

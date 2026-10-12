@@ -1,0 +1,79 @@
+[package]
+name = "vmlm-runtime"
+license-file = "../LICENSE"
+publish = false
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# 默认 = 推理引擎（体积预算 40KB，见白皮书 §7.4 决策）
+#   --features train : 训练路径（反向指令 + Adam/SGD），体积不设限
+#   --features bench : argv/计时/dump 基准设施，体积不设限
+default = []
+train = ["vmlm-core/train"]
+bench = []
+# neuron-kv: S5 按神经元组织的 KV-Cache（core/src/neuron_kv.rs）。
+#
+# 为什么需要**转发**而不是只依赖 core 的定义：
+#   `vmlm-core` 是以 `default-features = false` 依赖的（见文件末尾），
+#   而 cargo 的 feature 不会自动穿透路径依赖 —— 不转发的话
+#   `cargo build --features neuron-kv` 会直接报
+#   "package 'vmlm-runtime' does not contain this feature"（实测）。
+#   后果不只是报错：那意味着 core 里那个 feature 分支**永远为假**，
+#   S5 的模块在引擎里是**不可达的死代码**。
+#
+# 体积语义：默认**关闭**，所以推理引擎为 S5 付 0 字节（已实测 OFF/ON 差 0 B）。
+#   它是装载期/校验期代码，只在需要它的验证套件里开。
+neuron-kv = ["vmlm-core/neuron-kv"]
+# aot: 把 .vmb 烧进 .exe（见 src/aot.rs / tools/aot_build.py）
+#   模型常量在 src/model_aot.rs，用 tools/aot_build.py 生成
+aot = []
+# aot-multi: 一个 exe 内嵌 **多个** .vmb，运行时 --model=<name> 选择（P8 成员 G）
+#   模型表默认由 build.rs 生成到 OUT_DIR（环境变量 VMLM_AOT_MODELS 驱动）；
+#   加 `aot-offline` 时改用 tools/aot_multi_build.py 生成的 src/models_aot.rs。
+#   含 aot 是因为要复用 aot.rs 的 copy_to_aligned_writable（只读->可写堆镜像）
+aot-multi = ["aot"]
+
+# aot-offline: 用 tools/aot_multi_build.py 离线生成的 src/models_aot.rs
+#   （而不是 build.rs 的 OUT_DIR 产物）。
+#
+#   **为什么做成 feature 而不是 `--cfg vmlm_aot_offline`**：
+#   传自定义 cfg 只能走 RUSTFLAGS，而 RUSTFLAGS **会整体覆盖**
+#   .cargo/config.toml 里的 rustflags —— 那里面正是 /ENTRY、/NODEFAULTLIB
+#   等 no_std 链接参数，被覆盖掉就 LNK1561「必须定义入口点」（实测）。
+#   做成 feature 后由 cargo 正常合成 --cfg，config 的链接参数不受影响。
+aot-offline = []
+
+# aot-train: AOT 下的**训练闭环**（P8 成员 G）
+#   P7-B 遗留问题 3：`--features "aot train"` 只跑一个训练步就退出，没有闭环。
+#   本 feature 把「数据集」也烧进 exe（tools/aot_embed.py -> src/data_aot.rs），
+#   由 src/aot_train.rs 复刻 std 驱动（train_mnist.rs）的循环语义，实现
+#   **完全不读外部文件**的训练 + 评估。
+#   含 aot-multi：训练需要**两条指令流**（train_step 带反向 / eval_step 只前向），
+#   评估阶段必须换成只前向的流并拷权重 —— 这正是 std 驱动的做法
+#   （train_mnist.rs 140..147 行）。复用 aot-multi 的名字表来内嵌两个模型。
+aot-train = ["aot-multi", "train"]
+
+# mmap-aot: P10 任务 C —— 指令流内嵌进 exe，**权重放外部文件并在启动时 mmap**。
+#
+# 与 aot-multi / aot-train 的区别（互斥，不要同时开）：
+#   aot-multi : 模型（含权重）全部内嵌进 .rdata
+#   mmap-aot  : 只有「代码文件」内嵌（Header + TEXT + META + 零填充 CONST 占位），
+#               真正的权重从同目录的 weights.vmbw 映射进来
+#
+# 为什么需要：MiniCPM 权重 2.16 GB，内嵌进 exe 不现实。
+# mmap 让这 2.16 GB 成为**文件支持的页**（可共享、可丢弃、不占页面文件），
+# 而不是进程私有提交；启动时也不需要一次 2 GB 的 memcpy。
+#
+# ⚠️ 它**不减小文件体积**，只改变内存行为。压体积要靠量化
+#    （bf16 -> int8/int4），而那需要引擎有反量化 GEMM 内核（目前没有）。
+#    见 tools/p10_quant_eval.py 的实测评估。
+mmap-aot = []
+
+[lints.rust]
+# aot_multi.rs / aot_train.rs 用这两个 cfg 在「build.rs 生成」与
+# 「python 离线生成」两条 include 路径间二选一 —— 自定义 cfg，需显式声明。
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(vmlm_aot_offline)'] }
+
+[dependencies]
+vmlm-core = { path = "../core", default-features = false }

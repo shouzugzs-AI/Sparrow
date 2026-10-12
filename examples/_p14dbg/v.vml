@@ -1,0 +1,5 @@
+SHAPE x, 2, 4
+SHAPE o, 2, 1
+MAX o, x
+PRINT o
+HALT

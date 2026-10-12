@@ -1,0 +1,8 @@
+SHAPE ang, 10012, 1
+SHAPE s,   10012, 1
+SHAPE c,   10012, 1
+SIN s, ang
+COS c, ang
+PRINT s
+PRINT c
+HALT

@@ -1,0 +1,87 @@
+[
+  {
+    "check": "magic == CS_MAGIC (0x31525343)",
+    "passed": true,
+    "detail": "got 0x31525343"
+  },
+  {
+    "check": "k0 == 20 (task book's k0)",
+    "passed": true,
+    "detail": "got 20"
+  },
+  {
+    "check": "section bytes == header-derived size",
+    "passed": true,
+    "detail": "expected 251928, actual 251928"
+  },
+  {
+    "check": "total_pairs == n_neurons * k0",
+    "passed": true,
+    "detail": "30720 vs 1536*20=30720"
+  },
+  {
+    "check": "conn_offsets monotone non-decreasing",
+    "passed": true,
+    "detail": "first=0 last=30720"
+  },
+  {
+    "check": "conn_offsets[0] == 0",
+    "passed": true,
+    "detail": "got 0"
+  },
+  {
+    "check": "conn_offsets[n] == total_pairs",
+    "passed": true,
+    "detail": "30720 vs 30720"
+  },
+  {
+    "check": "every src_id < n_neurons",
+    "passed": true,
+    "detail": "0 violating of 30720"
+  },
+  {
+    "check": "CAN-FAIL: the src-range predicate rejects an out-of-range id",
+    "passed": true,
+    "detail": "planted one bad id, predicate found 1"
+  },
+  {
+    "check": "CAN-FAIL: the length predicate rejects a 4-byte truncation",
+    "passed": true,
+    "detail": "expected 251928, truncated 251924"
+  },
+  {
+    "check": "CAN-FAIL: the monotonicity predicate rejects a corrupted entry",
+    "passed": true,
+    "detail": "corrupted entry made the predicate fail"
+  },
+  {
+    "check": "connection list reproducible from the seed rule",
+    "passed": false,
+    "detail": "UNVERIFIED: the full selection rule (neuron_rand/neuron_conn_src) is a Rust const fn; re-implementing it here is a separate job, so only the seed was re-derived. Reported UNVERIFIED, not PASS."
+  },
+  {
+    "check": "wrapper magic == VMLM (0x4D4C4D56)",
+    "passed": true,
+    "detail": "got 0x4D4C4D56"
+  },
+  {
+    "check": "wrapper text_off >= 44 (descriptor present)",
+    "passed": true,
+    "detail": "text_off=44"
+  },
+  {
+    "check": "wrapper descriptor tag == SEC_CONN_SPARSE (3)",
+    "passed": true,
+    "detail": "got 3"
+  },
+  {
+    "check": "wrapper descriptor len == bare section size",
+    "passed": true,
+    "detail": "251928 vs 251928"
+  },
+  {
+    "check": "wrapper off + len <= file size",
+    "passed": true,
+    "detail": "44+251928=251972 vs 251972"
+  }
+]

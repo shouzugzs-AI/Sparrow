@@ -1,0 +1,22 @@
+[package]
+name = "vmlm-g-stdprobe"
+version = "0.1.0"
+edition = "2021"
+
+# 成员 G 的**独立**验收探针（P8 任务 3）。
+# 刻意不加入 workspace members（那要改根 Cargo.toml = 不是我的作用域），
+# 而是自带 workspace 边界的独立包，直接依赖 core。
+[workspace]
+
+[[bin]]
+name = "vmlm-g-stdprobe"
+path = "src/main.rs"
+
+[dependencies]
+vmlm-core = { path = "../../core", features = ["train"] }
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1

@@ -1,0 +1,30 @@
+{
+  "seq": 4,
+  "layers": 4,
+  "hidden": 1536,
+  "heads": 16,
+  "kv_heads": 2,
+  "head_dim": 128,
+  "inter": 4608,
+  "vocab": 130560,
+  "eps": 1e-06,
+  "theta": 5000000,
+  "input_ids": [
+    3,
+    117,
+    2501,
+    88
+  ],
+  "skip_head": true,
+  "neuron_kv": {
+    "n_layers": 4,
+    "n_kv_heads": 2,
+    "head_dim": 128,
+    "max_seq_per_neuron": 4,
+    "stride": 4,
+    "n_neurons": 1024,
+    "pmax": 4,
+    "n_seq": 4,
+    "section": "--assemble writes it into the .vmb"
+  }
+}

@@ -1,0 +1,5 @@
+.section forward
+    SHAPE   a512, 512, 512
+    SHAPE   b,    512, 512
+    GEMM    c512, a512, b
+    HALT
