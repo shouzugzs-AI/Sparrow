@@ -79,6 +79,18 @@ examples/**/_smoke/
 examples/p16_conn/conn_sparse.bin
 examples/p16_conn/conn_sparse.tiny.bin
 
+# ---------------------------------------------------------------------------
+# 第三方模型权重 —— 不随本仓库分发
+#   examples/minicpm_*/weights/ 里的张量是从上游 MiniCPM 模型提取出来的权重，
+#   受 Apache-2.0 +《MiniCPM 模型社区许可协议》约束（学术研究完全开放；商用需按
+#   上游填写问卷登记），与本仓库的 MPL-2.0 不是同一套条款 —— 为避免许可混装，
+#   这些文件已移出公开仓库，只保留在维护者的私有工作副本中。
+#   原因、来源与复现方法见 examples/minicpm_full/README.md 第 2-3 节。
+#   本规则同时防止从私有工作副本同步时把它们误加回来。
+# ---------------------------------------------------------------------------
+examples/minicpm_full/weights/
+examples/minicpm_24L_ns/weights/
+
 # Python 字节码
 __pycache__/
 *.pyc
