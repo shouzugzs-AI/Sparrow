@@ -7,7 +7,7 @@
 本仓库是 VMLM 的**全量副本**（**开源，MPL-2.0**，见 [LICENSE](LICENSE)）：稠密路径与 B1/B2 稀疏路径的代码都在这里。
 
 - 许可：**Mozilla Public License 2.0（MPL-2.0，开源）** —— 见 [LICENSE](LICENSE) 与 [LICENSE-NOTICE](LICENSE-NOTICE)。可自由使用、修改、分发（**包括商业使用**）；对 MPL 覆盖文件的**修改**须以 MPL 公开
-- 贡献：若获维护者邀请贡献，须签 [CAA.md](CAA.md)（著作权转让 + 回授；见 [CONTRIBUTING.md](CONTRIBUTING.md)）
+- 贡献：**当前暂不合并外部 Pull Request**（欢迎开 issue）；详见 [CONTRIBUTING.md](CONTRIBUTING.md)
 - 平台：Windows x86_64（`x86_64-pc-windows-msvc`），AVX2 + FMA
 - 文档索引：[docs/文档索引.md](docs/文档索引.md)；架构总览见 [docs/VMLM架构白皮书.md](docs/VMLM架构白皮书.md)
 
@@ -200,17 +200,20 @@ MPL-2.0 已允许商业使用，**通常不需要**另行取得商业许可。�
 
 维护者可针对具体情况提供书面许可（商业许可、OEM/嵌入许可等）。
 
-### 7.3 贡献须签 CAA
+### 7.3 贡献政策：当前暂不合并外部 Pull Request
 
-若维护者邀请你贡献代码，你必须签署 [CAA.md](CAA.md)（贡献者著作权转让协议）：你将 Contribution 的
-**著作财产权转让**给维护者，同时获得一项**回授**许可（你仍可在自己的项目/产品中自由使用你自己的贡献）。
-你的 Contribution 将以 **MPL-2.0** 向公众提供。
+维护者精力有限，**本仓库当前不合并外部提交**。这不影响你使用本项目：
 
-**仅 DCO / `Signed-off-by` 不被接受**——它只证明来源合规，**不构成著作权转让**。未签 CAA 的 PR 不会被合并。
-详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+- **允许**：fork、修改、再分发、商用（MPL-2.0 已授予这些权利，见 §7.1）；
+- **欢迎**：通过 issue 报告缺陷与改进建议；
+- **暂不处理**：Pull Request（会被关闭并引导到 issue）。
 
-该「著作权转让 + 再许可」安排，使维护者保留对项目进行**双许可 / 商业授权**的能力 ——
-这也是本项目能够同时提供 §7.2 所述商业许可的原因。
+因此本仓库**当前不使用任何贡献者协议**（既不需要签 CAA，也不需要 DCO）。
+若将来开放合并外部贡献，维护者会**先公布届时生效**的贡献者协议与签署方式，
+再合并第一份外部 PR。详见 [CONTRIBUTING.md §4](CONTRIBUTING.md)。
+
+> MPL-2.0 已允许任何人 fork 并继续开发；"不合并 PR"只影响是否把外部代码并进
+> **本仓库**，不影响你基于本项目做任何事。
 
 ### 7.4 关于许可证沿革（事实陈述）
 
@@ -226,6 +229,7 @@ MPL-2.0 已允许商业使用，**通常不需要**另行取得商业许可。�
 
 ---
 
-> **注意**：[CAA.md](CAA.md) 是**模板，不构成法律意见**；在正式对外收费 /
-> 商业授权之前，须由执业律师审阅。见 CAA.md 顶部声明（特别提示 §7 精神权利与
-> §8 回退条款）。
+> **另见**：[LICENSE-NOTICE](LICENSE-NOTICE)（Exhibit A 集中通知）、
+> [TRADEMARK.md](TRADEMARK.md)（名称与标识使用规则）、
+> [SECURITY.md](SECURITY.md)（漏洞报告）、
+> [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)（第三方材料）。
