@@ -1,6 +1,6 @@
 ; ==========================================================================
 ; P7-C: 真实 ESERNN 单步前向 → VMLM
-;   源:  <外部 ESERNN 源码目录>/core/ese_rnn.py
+;   源:  <ESERNN 仓库路径>/core/ese_rnn.py
 ;        ESERNN.forward_one / ESERNNBlock.forward_train /
 ;        TimeMixing.forward_train / ChannelMixing.forward_train
 ;

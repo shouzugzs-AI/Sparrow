@@ -44,7 +44,7 @@
 
 ## 前向语义：严格照 `ESERNN.forward_train`
 
-（源码 `<外部 ESERNN 源码目录>/core/ese_rnn.py`，不是从 C2 的推理路径猜的）
+（源码 `<ESERNN 仓库路径>/core/ese_rnn.py`，不是从 C2 的推理路径猜的）
 
 ```
 # ESERNN.forward_train
@@ -314,7 +314,7 @@ class TrainGen:
         e("; 由 tools/gen_eserNN_train.py **自动生成**（P9-J），请勿手改。")
         e(f"; 配置: vocab={V} hidden={HD} n_heads={NC} head_dim={D} inter={F}")
         e(f";       decay_hidden={DH} layers={NL} eps={self.EPS:g} T={T}")
-        e("; 源: <外部 ESERNN 源码目录>/core/ese_rnn.py")
+        e("; 源: <ESERNN 仓库路径>/core/ese_rnn.py")
         e(";     ESERNN.forward_train / ESERNNBlock.forward_train")
         e(";     TimeMixing.forward_train / ChannelMixing.forward_train")
         e("; ==========================================================================")

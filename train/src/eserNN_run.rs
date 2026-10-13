@@ -168,7 +168,7 @@ fn main() {
         "配置: vocab={} hidden={} heads={} head_dim={} layers={} steps={}",
         v, h, nhead, d, nl, t_steps
     );
-    println!("源: <外部 ESERNN 源码目录>/core/ese_rnn.py (forward_one / ESERNNBlock / TimeMixing / ChannelMixing)");
+    println!("源: <ESERNN 仓库路径>/core/ese_rnn.py (forward_one / ESERNNBlock / TimeMixing / ChannelMixing)");
     println!("指令流由 tools/gen_eserNN.py 生成\n");
 
     unsafe {

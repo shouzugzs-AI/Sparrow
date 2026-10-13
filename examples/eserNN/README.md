@@ -4,6 +4,11 @@
 > P7-C 交付：`hidden=64 / 1 层` vs 真实 ESERNN **2.384e-7**（PASS）。
 > 本任务：**参数化生成器 + 放大到真实配置 `hidden=512 / 6 层`**。
 
+> **来源与许可：** ESERNN（Existential State Engine / 存在式状态引擎）是**本项目作者
+> 金施哲**的独立项目；本目录是它的 `.vml` 移植与对照产物，著作权与 VMLM 同属一人，
+> 与本仓库一并按 **MPL-2.0** 发布，不涉及任何第三方许可。
+> 文中 `<ESERNN 仓库路径>` 指作者本地的 ESERNN 源码目录（为脱敏起见不写入真实绝对路径）。
+
 ---
 
 ## 1. 结论速览
@@ -67,7 +72,7 @@ python tools/gen_eserNN.py --cfg real --vocab 32 --T 3 `
     --out-dir examples/eserNN/_cc --crosscheck
 
 # 7) 用真实 checkpoint 的权重生成（自动识别架构、导出 nn.Parameter 转置副本）
-python tools/gen_eserNN.py --ckpt <外部 ESERNN 源码目录>/checkpoints/checkpoint.active.pt `
+python tools/gen_eserNN.py --ckpt <ESERNN 仓库路径>/checkpoints/checkpoint.active.pt `
     --out-dir examples/eserNN/gen_ckpt --crosscheck
 ```
 

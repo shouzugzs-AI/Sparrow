@@ -3,7 +3,7 @@
 """P7-C: 真实 ESERNN 单步前向 → VMLM 迁移。
 
 本脚本做三件事（成员 C 的独占写作用域）：
-  1. 用**真实 ESERNN 源码语义**（<外部 ESERNN 源码目录>/core/ese_rnn.py 的
+  1. 用**真实 ESERNN 源码语义**（<ESERNN 仓库路径>/core/ese_rnn.py 的
      TimeMixing / ChannelMixing / ESERNNBlock / forward_one）生成 mini 配置权重；
   2. 用 numpy **逐步**复算同一个 mini 配置，落盘参考结果（ref_logits / ref_S / ref_x）；
   3. 导出所有张量为原始 f32 小端 .bin，供汇编器 `名字:文件.bin:rows:cols` 注入。
@@ -260,7 +260,7 @@ def _build_real_model():
 
     返回 (model, torch)；取不到 torch / ESERNN 包时返回 (None, 原因字符串)。
     """
-    eser_dir = r"<外部 ESERNN 源码目录>"
+    eser_dir = r"<ESERNN 仓库路径>"
     if not os.path.isdir(eser_dir):
         return None, "ESERNN 目录不存在"
     try:

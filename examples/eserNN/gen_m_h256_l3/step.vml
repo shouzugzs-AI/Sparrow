@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; 由 tools/gen_eserNN.py **自动生成**，请勿手改。
 ; 配置: vocab=32 hidden=256 n_heads=8 head_dim=32 inter=768 decay_hidden=32 layers=3 eps=1e-06 T=6
-; 源: <外部 ESERNN 源码目录>/core/ese_rnn.py
+; 源: <ESERNN 仓库路径>/core/ese_rnn.py
 ;     ESERNN.forward_one / forward_train / ESERNNBlock / TimeMixing / ChannelMixing
 ;
 ; 约定（P7-C 实测）:

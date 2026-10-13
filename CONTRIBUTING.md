@@ -91,9 +91,9 @@ cargo test --release --workspace --exclude vmlm-runtime
 权利。若无 CAA 中的**著作权转让**与**再许可（换证）授权**，维护者就**无法**
 合法地提供商业许可——这会直接影响项目的可持续性。
 
-> **沿革：** 本项目早期曾使用 Contributor License Agreement（CLA，贡献者
-> 许可协议）；自 CAA 生效起已改为**贡献者著作权转让协议（CAA）**，此后以
-> [CAA.md](CAA.md) 为准。
+> **唯一性：** 本项目**只**使用 [CAA.md](CAA.md)（贡献者著作权转让协议）这一份
+> 贡献授权文件；本仓库从未使用过 Contributor License Agreement（CLA）或其它
+> 贡献者协议。CAA 的生效状态见其顶部声明。
 
 ### 4.2 为什么不接受仅 DCO / `Signed-off-by`
 

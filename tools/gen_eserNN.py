@@ -344,7 +344,7 @@ class Gen:
         E("; 由 tools/gen_eserNN.py **自动生成**，请勿手改。")
         E(f"; 配置: vocab={V} hidden={HD} n_heads={NC} head_dim={D} "
           f"inter={F} decay_hidden={DH} layers={NL} eps={self.EPS:g} T={self.T}")
-        E("; 源: <外部 ESERNN 源码目录>/core/ese_rnn.py")
+        E("; 源: <ESERNN 仓库路径>/core/ese_rnn.py")
         E(";     ESERNN.forward_one / forward_train / ESERNNBlock / TimeMixing / ChannelMixing")
         E(";")
         E("; 约定（P7-C 实测）:")
@@ -572,7 +572,7 @@ class Gen:
                 np.array(xp, np.float32), x[0].copy(), np.array(xstep_all, np.float32))
 
     # ---------------- 交叉验证：真实 ESERNN 类 ----------------
-    def crosscheck(self, eser_dir=r"<外部 ESERNN 源码目录>"):
+    def crosscheck(self, eser_dir=r"<ESERNN 仓库路径>"):
         # ⚠ 必须**先**把 ESERNN 目录插进 sys.path，再 import core.ese_rnn。
         if eser_dir not in sys.path:
             sys.path.insert(0, eser_dir)
