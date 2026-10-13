@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# 换行策略：仓库内存放与检出统一使用 LF。
+#
+# 为什么必须显式声明：本仓库的工作区历史上不是由 `git checkout` 产生的，
+# 曾出现 204/1002 个文件「index=LF、工作区=CRLF」的不一致；git 的 stat 缓存
+# 会让 `git status` 把它们显示成"干净"，但一旦改写这类文件，写入的换行与 index
+# 不符，就会把 1 行改动记成整文件重写（实测：1 行插入 → 33 行 diff）。
+# `text=auto` 让 git 在读取时即归一化，CRLF 工作区不再被当成改动，
+# 协作者也不会再引入换行污染。
+# ---------------------------------------------------------------------------
+* text=auto eol=lf
+
+# 明确按二进制处理：不做任何换行转换，也不参与文本 diff
+*.exe   binary
+*.dll   binary
+*.pdb   binary
+*.lib   binary
+*.exp   binary
+*.obj   binary
+*.ilk   binary
+*.bin   binary
+*.f32   binary
+*.bf16  binary
+*.f16   binary
+*.cpk   binary
+*.vmb   binary
+*.npy   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+*.7z    binary
