@@ -147,8 +147,8 @@ Signed-off-by: 你的姓名 <你的邮箱>
    预期值。若你更新了某个指标，请同时给出测量方式。
 5. **许可证头**：本仓库**不**为每个源文件添加许可证头。许可证与授权条件的统一
    位置是 [LICENSE](LICENSE) 与 [LICENSE-NOTICE](LICENSE-NOTICE)（**MPL-2.0**，
-   依 Exhibit A 集中通知）。新文件若需要头部声明，请使用
-   `oss-license\SOURCE-HEADER.txt` 的三行标准文本。
+   依 Exhibit A 集中通知）。新文件若确实需要头部声明，请使用
+   [SOURCE-HEADER.txt](SOURCE-HEADER.txt) 的三行标准文本。
    请**不要**在源文件中插入与 LICENSE 冲突的权利声明（例如把本项目声明为专有软件）。
 6. **不要提交权重 / 词表**：`.cpk` 等检查点不入库（见 `.gitignore`）。
 
