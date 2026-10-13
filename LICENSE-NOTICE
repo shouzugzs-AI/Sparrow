@@ -1,0 +1,51 @@
+VMLM — Source Code Form License Notice (MPL-2.0)
+================================================
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+Copyright (c) 2026 金施哲 (Jin Shizhe)
+
+--------------------------------------------------------------------------------
+中文说明（仅为便于阅读，不构成许可条款的一部分；一切以 LICENSE 的英文正文为准）
+--------------------------------------------------------------------------------
+
+1. 集中通知（MPL-2.0 Exhibit A）
+   本仓库**不**为每个源文件单独附加许可证头。依 Exhibit A，上述
+   "This Source Code Form is subject to the terms of the Mozilla Public
+   License…" 通知统一置于接收方会寻找的位置：本文件与 LICENSE。
+
+2. 未附加 Exhibit B
+   本仓库**未**附加 MPL-2.0 的 Exhibit B（"Incompatible With Secondary
+   Licenses"）通知，故本 Source Code Form **不属于** "Incompatible With
+   Secondary Licenses"，可依 MPL-2.0 §3.3 与 GPL 等 Secondary License 组合。
+
+3. LICENSE 正文完整性
+   LICENSE 为 MPL-2.0 官方英文原文，未作任何改写。
+   字节数 16,726；SHA-256
+   FAB3DD6BDAB226F1C08630B1DD917E11FCB4EC5E1E020E2C16F83A0A13863E85
+   官方地址：https://mozilla.org/MPL/2.0/
+
+4. 第三方与衍生代码
+   本仓库中若含第三方代码或依第三方作品产生的衍生代码（例如 examples/ 下的
+   移植、对照与参考实现），其许可与归属**不**由本通知覆盖，见
+   THIRD-PARTY-NOTICES.md。**未完成该清单前，不得对外分发。**
+
+5. 贡献
+   外部贡献须先签署 CAA.md（贡献者著作权转让协议）；其著作财产权转让给
+   Maintainer（金施哲），贡献本身以 MPL-2.0 向公众提供。
+
+6. 商业许可
+   MPL-2.0 本身已允许商业使用。若需非 MPL 条款（例如在闭源产品中修改 MPL
+   覆盖文件）、OEM/嵌入或白标授权，请联系 Maintainer：
+   GitHub **[@shouzugzs](https://github.com/shouzugzs)**（仓库 issue 或私信）。
+   需要正式书面联系时请在其中说明，维护者会提供专用联系渠道。
+
+7. 商标
+   本文件与 LICENSE 均**不**授予商标权。名称与标识的使用规则见 TRADEMARK.md。
+
+8. 许可证沿革（事实陈述）
+   本项目自首次提交起至首个 MPL-2.0 版本之前，采用「保留所有权利」的专有
+   许可，**从未以任何开源许可证公开发布过任何版本**。自 MPL-2.0 版本起，
+   新版本以 MPL-2.0 发布。已按 MPL-2.0 发布的副本，其许可**永久有效、不可撤回**。

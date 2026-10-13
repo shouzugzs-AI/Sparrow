@@ -2,6 +2,7 @@
 name = "vmlm-g-stdprobe"
 version = "0.1.0"
 edition = "2021"
+license = "MPL-2.0"
 
 # 成员 G 的**独立**验收探针（P8 任务 3）。
 # 刻意不加入 workspace members（那要改根 Cargo.toml = 不是我的作用域），
