@@ -1,0 +1,8 @@
+# tiny_mixed.sparrow —— 中英混写 + 混用标点 + 花括号块（验收 3）
+model small {
+  嵌入 词表=4054, 维度=1536;
+  Sparse(dim=1536, 连接=8);
+  线性 输出=4054
+  连接 嵌入 稀疏 Linear
+  前向 Embed 线性
+}

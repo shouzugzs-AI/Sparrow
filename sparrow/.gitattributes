@@ -1,0 +1,18 @@
+# ---------------------------------------------------------------------------
+# 换行策略：与上游 D:\czsai\vmlmd\.gitattributes 保持一致（仓库内 LF）。
+# 理由（照抄上游实测结论）：本工作区不是由 git checkout 产生的，若 index 与工作区
+# 换行不一致，git 的 stat 缓存会把它们显示成「干净」，一旦改写就会把 1 行改动记成
+# 整文件重写。text=auto 让 git 在读取时即归一化，CRLF 工作区不再被误判为改动。
+# ---------------------------------------------------------------------------
+* text=auto eol=lf
+
+# 明确按二进制处理：不做换行转换，也不参与文本 diff
+*.bin   binary
+*.vmb   binary
+*.exe   binary
+*.dll   binary
+*.pdb   binary
+*.lib   binary
+*.obj   binary
+*.png   binary
+*.jpg   binary

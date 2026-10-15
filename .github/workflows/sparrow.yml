@@ -1,0 +1,67 @@
+name: Sparrow（描述语言）
+
+# 只跑**不需要引擎**的那部分：`cargo test`（89 项）+ 前端确定性冒烟。
+#
+# 为什么不全跑：`sparrow/tools/verify_all.ps1` 的 11 个驱动里有 10 个要调用**引擎**
+# （汇编器 / 运行时 / vmlm-ops），而引擎的构建需要 `runtime/` 下的 `.cargo/config.toml`
+# 链接参数与 `--target x86_64-pc-windows-msvc`，属于另一个量级的构建面。
+# 这里诚实地跑能跑的部分，而不是造一个"看起来全绿"的假验收。
+# 本地完整验收（引擎就在上一级）：
+#     pwsh -NoProfile -ExecutionPolicy Bypass -File sparrow/tools/verify_all.ps1
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: sparrow
+
+jobs:
+  test:
+    name: cargo test + 前端确定性（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust（stable）
+        uses: dtolnay/rust-toolchain@stable
+
+      # `--locked` 顺带守住"零第三方依赖"这条承诺：任何新增依赖都会让这一步报错，
+      # 而不是悄悄改掉 Cargo.lock。
+      - name: cargo test（89 项）
+        run: cargo test --locked
+
+      - name: cargo build --release
+        run: cargo build --release --locked
+
+      - name: 前端确定性冒烟（验收 3 的跨平台版）
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin=./target/release/sparrow
+          [ -x "$bin" ] || bin=./target/release/sparrow.exe
+          # 中文 / 英文 / 中英混写 —— 三种写法必须产出**逐字节相同**的 .spar
+          "$bin" examples/tiny_cn.sparrow    > a.spar
+          "$bin" examples/tiny_en.sparrow    > b.spar
+          "$bin" examples/tiny_mixed.sparrow > c.spar
+          cmp a.spar b.spar
+          cmp a.spar c.spar
+          # 再冒烟一条四层链：位置参数、命名参数、连接/前向
+          "$bin" examples/level2.sparrow | grep -q 'LAYER   EMBED EMBED dim=512'
+          "$bin" examples/level2.sparrow | grep -q 'CONNECT EMBED SPARSE LINEAR'
+          echo "写法不同、语义相同 ⇒ 同一个 .spar ✓"
+
+      - name: 完整验收怎么跑（需要引擎）
+        shell: bash
+        run: |
+          echo "完整验收需要引擎（就在仓库根，即本目录的上一级）："
+          echo "  pwsh -NoProfile -ExecutionPolicy Bypass -File sparrow/tools/verify_all.ps1"
+          echo "它跑 cargo test + 11 个驱动 + 「跑完之后工作区干净」不变量。"

@@ -1,0 +1,7 @@
+tiny_in:tiny_in.bin:1:1
+EMBED_E:EMBED_E.bin:8:4
+SPARSE_off:SPARSE_off.bin:5:1
+SPARSE_src:SPARSE_src.bin:8:1
+SPARSE_W:SPARSE_W.bin:8:1
+LINEAR_W:LINEAR_W.bin:4:4
+LINEAR_b:LINEAR_b.bin:1:4

@@ -1,0 +1,15 @@
+# Sparrow V0.1.5 ⑥ —— 线性层的 int8 量化权重（per-**输出行** scale）
+#
+# 只在 `--backend lib` 里可用：生成的 Rust 调 `vmlm_ops::kernels::gemm_nt_int8`。
+# `.vmb`/汇编器那条路没有反量化 GEMM 指令 ⇒ 前端明确拒绝（E109），不产出跑不起来的产物。
+#
+# 对应常量（examples/int8_bins/，由 tools/gen_int8.py 生成）：
+#   o_W.bin     [4,1] f32   —— f32 参照（= q/64，精确可表示）
+#   o_Wq.bin    [4,1] i8    —— 量化权重
+#   o_scale.bin [4]   f32   —— 每输出行一个 scale（= 1/64）
+#   o_b.bin     [4]   f32   —— 偏置
+#
+# 单层、输入宽度 1 ⇒ 内积只有一项，两条路必须**逐字符相同**（见 tools/gen_int8.py 的推导）。
+模型 i8o:
+  o = 线性 输入=1 输出=4
+  前向 o o

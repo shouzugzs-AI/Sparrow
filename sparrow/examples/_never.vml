@@ -1,0 +1,21 @@
+; sparrow v0.1.2 — opcode .vml (generated from .spar)
+; model: tiny
+; 常量清单（同 .args）：
+;   tiny_in          tiny_in.bin          [1, 1] f32  模型输入（词元 id）
+;   EMBED_E          EMBED_E.bin          [8, 4] f32  嵌入表 [vocab, dim]（EMB 的表）
+;   SPARSE_off       SPARSE_off.bin       [5, 1] f32  CSR 行偏移（f32 存整数）
+;   SPARSE_src       SPARSE_src.bin       [8, 1] f32  CSR 列索引（f32 存整数）
+;   SPARSE_W         SPARSE_W.bin         [8, 1] f32  CSR 连接权重
+;   LINEAR_W         LINEAR_W.bin         [4, 4] f32  权重 [out, in]（NT 布局；GEMM 的 b 操作数）
+;   LINEAR_b         LINEAR_b.bin         [1, 4] f32  偏置 [1, out]
+.section forward
+    SHAPE   EMBED_out, 1, 4
+    EMB     EMBED_out, EMBED_E, tiny_in
+    SHAPE   SPARSE_col, 4, 1
+    SPARSE_MATVEC SPARSE_col, SPARSE_off, SPARSE_src, SPARSE_W, EMBED_out
+    TRANSPOSE SPARSE_out, SPARSE_col
+    GEMM    LINEAR_out, SPARSE_out, LINEAR_W
+    BIAS    LINEAR_out, LINEAR_b
+    PRINT   LINEAR_out
+    HALT
+.end

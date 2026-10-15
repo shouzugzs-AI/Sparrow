@@ -1,0 +1,7 @@
+# tiny_en.sparrow —— 全英文关键字 + 全英文标点（验收 3）
+model small:
+  Embed(vocab=4054, dim=1536)
+  Sparse(dim=1536, k0=8)
+  Linear(out=4054)
+  connect Embed Sparse Linear
+  forward Embed Linear

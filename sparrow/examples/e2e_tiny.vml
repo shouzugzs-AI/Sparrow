@@ -1,0 +1,17 @@
+; e2e_tiny 的**手写参考** .vml（Sparrow V0.1.1 验收基准）
+;
+; 与 examples/e2e_tiny.sparrow 描述同一个模型，但:
+;   * 槽位命名是手写的（h0 / h1 / y），不是生成器的命名
+;   * 稀疏层走**稠密等价**路径 GEMM + DENSE_W，而不是生成的 SPARSE_MATVEC(CSR)
+; 于是"生成 vs 手写"比较的是两条不同指令路径的数值结果，而不是两段相同文本。
+;
+; 常量名与生成版一致，共用 examples/e2e_bins/ 下的 .bin。
+.section forward
+    SHAPE   h0, 1, 4
+    EMB     h0, EMBED_E, tiny_in
+    GEMM    h1, h0, DENSE_W
+    GEMM    y, h1, LINEAR_W
+    BIAS    y, LINEAR_b
+    PRINT   y
+    HALT
+.end

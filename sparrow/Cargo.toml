@@ -1,0 +1,22 @@
+[workspace]
+
+[package]
+name = "sparrow"
+version = "0.1.6"
+edition = "2021"
+description = "Sparrow —— 神经网络架构描述语言（文本前端：源码 → .spar → .vml → .vmb；另有 Rust AOT 后端）"
+license = "MPL-2.0"
+readme = "README.md"
+
+[lib]
+name = "sparrow"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sparrow"
+path = "src/main.rs"
+
+[dependencies]
+
+[profile.release]
+opt-level = 3

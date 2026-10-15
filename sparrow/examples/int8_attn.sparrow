@@ -1,0 +1,20 @@
+# Sparrow V0.1.6 —— int8 铺到**注意力投影**（四组 GEMM 形态的权重）
+#
+# 在此之前 int8 只作用于线性层（V0.1.5 ⑥）。注意力里的 `Wq/Wk/Wv/Wo` 本来
+# 就是四组 `gemm_nt`，所以能吃同一个 `gemm_nt_int8`（反量化在核内）。
+#
+# 命名的坑：`<层>_scale` 已经被"softmax 的 1/sqrt(hd)"占了，所以反量化 scale
+# 只能叫 `<层>_Wq_scale` 这种带投影名的形式 —— 否则两个 scale 会撞成同一个字段。
+#
+# 只走 `--backend lib`：`.vmb`/汇编器那条路没有反量化 GEMM 指令（E109）。
+#
+# 素材：tools/gen_int8_attn.py →
+#   examples/int8_attn_bins/     f32 权重（对照组）
+#   examples/int8_attn_i8_bins/  int8 q + 每输出行 scale（精确可表示：w = q/64）
+#
+# 验收：tools/int8_ab.ps1 第 7 节（f32 vs int8 的 A/B + 动一行 scale 的 can-fail + 体积公式）。
+模型 i8attn:
+  h1 = 线性 输入=4 输出=4 序列=4
+  注意力 维度=4 头=2 序列=4 因果=是
+  连接 h1 注意力
+  前向 h1 注意力

@@ -1,0 +1,9 @@
+; sparrow v0.1 — canonical .spar IR (architecture level)
+; model: tiny
+.model tiny
+  LAYER   EMBED EMBED vocab=8 dim=4
+  LAYER   SPARSE SPARSE dim=4 k0=2
+  LAYER   LINEAR LINEAR out=4
+  CONNECT EMBED SPARSE LINEAR
+  FORWARD EMBED LINEAR
+.end

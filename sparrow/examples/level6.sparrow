@@ -1,0 +1,6 @@
+# Sparrow Level 6 —— 直接写 opcode
+模型 裸机:
+  @load r0 cpool+0
+  @gemm r0 x r0 -> h
+  @relu h
+  @store h -> y

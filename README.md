@@ -161,8 +161,40 @@ vmlmd/
 ├─ docs/        设计与实测文档（见 docs/文档索引.md）
 ├─ tools/       辅助脚本
 ├─ artifacts/   训练产物（不入库）
+├─ sparrow/     描述语言（DSL：源码 → .spar → .vml → .vmb；另有 Rust AOT 后端）
 └─ Cargo.toml   workspace 定义
 ```
+
+### 6.1 描述语言 Sparrow（`sparrow/`）
+
+`sparrow/` 是本项目的**神经网络架构描述语言**（自带 `[workspace]`，**不是**引擎 workspace 的
+member —— 加它不会进引擎的构建/链接面）：
+
+```sparrow
+模型 attncausal：
+  线性 输入=4 输出=4 序列=4
+  注意力 维度=4 头=2 序列=4 因果=是
+  连接 线性 注意力
+  前向 线性 注意力
+```
+
+* 两条后端：`.vmb`（交给本仓库的 `asm/` 与 `runtime/`）与 **Rust AOT**
+  （`--backend lib --lang rust`，生成的 crate 静态链接本仓库的 `vmlm-ops`，所以与 `.vmb` 逐字符一致）；
+* 训练路径：`损失 均方` + `反向`（按拓扑反序发射 `MSE_BWD` / `GEMM_BWD_W` / `GEMM_BWD_X` /
+  `BIAS_BWD` / `ACT_BWD`，并把每个参数的梯度打印出来）；
+* 零第三方依赖；`cargo test` **89 项**；一条命令跑完全部验收（11 个驱动 + "跑完工作区干净"不变量）：
+
+```powershell
+cd sparrow
+cargo test --locked
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools\verify_all.ps1   # 退出码 0 = 全绿
+```
+
+入口在 [`sparrow/README.md`](sparrow/README.md)（语言速览 / 两个后端 / 已知边界），
+变更记录见 [`sparrow/CHANGELOG.md`](sparrow/CHANGELOG.md)，实测踩过的坑见
+[`sparrow/docs/TRAPS.md`](sparrow/docs/TRAPS.md)，逐项证据见
+[`sparrow/REPORT_V015.md`](sparrow/REPORT_V015.md)。
+工具会**自动**在"上一级就是引擎仓库根"的布局下推导 `--vmlm-root`，不需要额外参数。
 
 ---
 
