@@ -190,6 +190,9 @@ cargo test --locked
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools\verify_all.ps1   # 退出码 0 = 全绿
 ```
 
+**想直接上手语言**：[`sparrow/docs/使用指南.md`](sparrow/docs/使用指南.md) —— 16 节：语法全表、
+每种层与属性（含哪些是静默 no-op）、命令行、诊断码、9 条可跑配方、十个最常撞的坑。
+
 入口在 [`sparrow/README.md`](sparrow/README.md)（语言速览 / 两个后端 / 已知边界），
 变更记录见 [`sparrow/CHANGELOG.md`](sparrow/CHANGELOG.md)，实测踩过的坑见
 [`sparrow/docs/TRAPS.md`](sparrow/docs/TRAPS.md)，逐项证据见
