@@ -265,3 +265,21 @@ MPL-2.0 已允许商业使用，**通常不需要**另行取得商业许可。�
 > [TRADEMARK.md](TRADEMARK.md)（名称与标识使用规则）、
 > [SECURITY.md](SECURITY.md)（漏洞报告）、
 > [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)（第三方材料）。
+
+---
+
+## 8. 在国内网络下访问（实测）
+
+`github.com` 网页与 `raw.githubusercontent.com` 在本机**不通**（SNI 阻断）。实测可用的入口：
+
+| 用途 | 入口 |
+| --- | --- |
+| 读网页 / 单文件 | `https://gh-proxy.com/https://github.com/shouzugzs-AI/Sparrow` |
+| 下载整包 zip | `https://gh-proxy.com/https://github.com/shouzugzs-AI/Sparrow/archive/refs/heads/main.zip`（3.3 MB / 8.2 s） |
+| 元数据 / 单文件（程序化） | `https://api.github.com/repos/shouzugzs-AI/Sparrow`（HTTP 200，不依赖第三方） |
+| git 推送 / 拉取 | **SSH over 443**：`~/.ssh/config` 里 `Host github.com` → `HostName ssh.github.com` + `Port 443` |
+
+`gitee.com` / `gitcode.com` 可访问，适合做**镜像**（含核验命令）。
+
+完整实测表、可抄的命令、镜像做法与注意事项见
+[**docs/访问方式_国内网络.md**](docs/访问方式_国内网络.md)。
