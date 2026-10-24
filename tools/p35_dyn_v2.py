@@ -167,6 +167,7 @@ class Block(nn.Module):
         # the fixed validation batches.
         self.ev_h = None
         self.ev_mid = None
+        self.bias = None          # aux-loss-free 负载均衡偏置（[d]，推向均匀选中率）
         self.last_H = None         # value-distribution entropies on the last forward
 
     def _rope(self, x, cos, sin):
@@ -182,7 +183,15 @@ class Block(nn.Module):
         h1 = self.ln1(x)
         m_qkv = m_in
         if cfg.src == "h":
-            m_qkv, _ = mask_from_score(h1.detach().abs(), cfg.keep)
+            sc = h1.detach().abs()
+            if self.bias is not None:
+                sc = sc + self.bias
+            if getattr(cfg, "cov_pen", 0) > 0:
+                # 覆盖感知：该 token 前几层已经读过的通道降权，逼它读新通道
+                if getattr(cfg, "cov", None) is None:
+                    cfg.cov = torch.zeros_like(sc)
+                sc = sc - cfg.cov_pen * cfg.cov
+            m_qkv, _ = mask_from_score(sc, cfg.keep)
         if cfg.src == "r":
             m_qkv, pr, hr = mask_from_router(self.router, h1, cfg.keep, cfg.temp)
             if pr is not None:
@@ -201,6 +210,8 @@ class Block(nn.Module):
         else:
             m_ffn = m_qkv          # src=h: one mask, same layer, reused by FFN
         self.last_mask = None if m_ffn is None else m_ffn.detach()
+        if getattr(cfg, "cov_pen", 0) > 0 and m_ffn is not None:
+            cfg.cov = cfg.cov + m_ffn.detach()
         if cfg.track and m_ffn is not None:
             add = m_ffn.detach().sum(dim=(0, 1)).cpu()
             if self.usage_h is None:
@@ -261,6 +272,7 @@ class DynLM(nn.Module):
 
     def forward(self, idx, cfg, collect=False):
         aux = []
+        cfg.cov = None
         x = self.emb(idx)
         masks = []
         m = None
@@ -299,6 +311,34 @@ def macs_per_token(vocab, d, layers, hidden, seq, keep_h=1.0, keep_mid=1.0,
     if use_router:            # score = W_r x  (d*d per layer + d*d for the head)
         base += (layers + 1) * d * d
     return base, base - saved
+
+
+def unit_sched_factor(p, warm_frac, min_ratio):
+    """把一条 warmup+cosine 曲线作用在 [0,1] 的自身进度 p 上。
+
+    p = q * t/T，q = 该通道的选中量 / 均匀应得量（均匀时 q=1，p 就等于全局进度）。
+    """
+    p = min(max(p, 0.0), 1.0)
+    w = max(1e-6, warm_frac)
+    if p < w:
+        return p / w
+    u = (p - w) / max(1e-9, 1.0 - w)
+    return min_ratio + (1.0 - min_ratio) * 0.5 * (1.0 + math.cos(math.pi * u))
+
+
+def chan_factor(cnt, keep, bt_t, n, t_frac, warm_frac, min_ratio, glob):
+    """[n] 的每通道 lr 缩放比 = 该通道自己的调度 / 全局调度。
+
+    cnt   累计“有多少 token 选中该通道”
+    keep  保留比例；bt_t = batch*seq*当前步；n = 该空间的通道数
+    """
+    if cnt is None:
+        return None
+    q = (n * cnt / max(1e-9, keep * bt_t)).clamp(0.0, 32.0)
+    p = (q * t_frac).clamp(0.0, 1.0)
+    f = torch.tensor([unit_sched_factor(float(v), warm_frac, min_ratio) for v in p])
+    f = f / max(glob, 1e-6)
+    return f.clamp(0.02, 20.0)
 
 
 def get_batch(train, cursor, batch, seq):
@@ -525,6 +565,22 @@ def main():
     ap.add_argument("--aux-coef", type=float, default=0.01)
     ap.add_argument("--tag", default="")
     ap.add_argument("--bench", type=int, default=0)
+    ap.add_argument("--ckpt", default="", help="checkpoint 路径，缺省 <OUT>/<tag>.pt")
+    ap.add_argument("--ckpt-every", type=int, default=100, help="每多少步存一次（0=只在最后）")
+    ap.add_argument("--resume", type=int, default=0, help="1 = 存在 ckpt 就从那里续跑")
+    ap.add_argument("--stop-at", type=int, default=0,
+                    help="跑到这一步就停（用于保持 --steps 定下的 lr 曲线，但只跑前段看细粒度）")
+    ap.add_argument("--cov-penalty", type=float, default=0.0,
+                    help=">0 时启用覆盖感知掩码：对该 token 前几层已读通道降权，提高跨层覆盖")
+    ap.add_argument("--mask-balance", type=float, default=0.0,
+                    help=">0 时启用 aux-loss-free 负载均衡：每层每通道一个偏置，"
+                         "按窗口选中率往均匀推（0=关）")
+    ap.add_argument("--sched", default="global", choices=["global", "unit"],
+                    help="global = 全局 warmup+cosine；unit = 每通道按自己的选中量走同一条曲线")
+    ap.add_argument("--sched-min", type=float, default=0.05,
+                    help="unit 调度的 lr 下限比例（相对峰值）")
+    ap.add_argument("--sched-warm-frac", type=float, default=0.0,
+                    help="unit 调度的预热占自身进度的比例，0 = 用 global 的 warmup/steps")
     args = ap.parse_args()
     args.hidden = args.hidden or 4 * args.d
     args.keep_mid = args.keep_mid or args.keep
@@ -553,6 +609,8 @@ def main():
     cfg = C()
     cfg.src, cfg.keep, cfg.keep_mid = args.mask_src, args.keep, args.keep_mid
     cfg.temp = args.temp
+    cfg.cov_pen = args.cov_penalty
+    cfg.cov = None
     cfg.track = args.mask_src != "none"    # accumulate usage counts every step
     cfg.track_values = False               # value entropies only on the eval forward
 
@@ -564,6 +622,21 @@ def main():
              args.seq, args.batch))
 
     opt = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), eps=1e-8)
+
+    # --- 逐通道调度（--sched unit）：哪些权重按哪个空间的通道数缩放 ---
+    if args.mask_balance > 0 and args.mask_src == "h":
+        for b in model.layers:
+            b.bias = torch.zeros(model.layers[0].d)
+
+    unit = args.sched == "unit"
+    mpairs = []          # (param, kind, layer)
+    if unit:
+        for i, blk in enumerate(model.layers):
+            for nm in ("q", "k", "v"):
+                mpairs.append((getattr(blk, nm).weight, "h_prev", i))
+            for nm in ("gate", "up"):
+                mpairs.append((getattr(blk, nm).weight, "h", i))
+            mpairs.append((blk.down.weight, "mid", i))
     vb = get_val_batches(val, args.batch, args.seq)
     n = len(train) - args.seq - 1
     cursor = (args.seed * 977) % n
@@ -612,20 +685,38 @@ def main():
     tag = args.tag or ("%s_k%.3f_d%d" % (args.mask_src, args.keep, args.d))
     os.makedirs(OUT, exist_ok=True)
     mpath = os.path.join(OUT, tag + ".jsonl")
+    ck_path = args.ckpt or os.path.join(OUT, tag + ".pt")
+    start_st = 1
+    mode = "w"
+    if args.resume and os.path.exists(ck_path):
+        sd = torch.load(ck_path, map_location="cpu", weights_only=False)
+        model.load_state_dict(sd["model"])
+        opt.load_state_dict(sd["opt"])
+        start_st = int(sd["step"]) + 1
+        cursor = int(sd["cursor"])
+        for i, b in enumerate(model.layers):
+            c = sd["ctr"][i]
+            for nm in ("usage_h", "usage_mid", "usage_h_w", "usage_mid_w"):
+                setattr(b, nm, c.get(nm))
+            if b.bias is not None and sd.get("bias") is not None:
+                b.bias = sd["bias"][i]
+        mode = "a"
+        print("[resume] %s step=%d cursor=%d" % (ck_path, start_st - 1, cursor), flush=True)
     t_start = time.time()
-    with open(mpath, "w", encoding="utf-8") as f:
-        f.write(json.dumps(dict(kind="cfg", tag=tag, vocab=vocab, d=args.d,
-                                layers=args.layers, heads=args.heads, hidden=args.hidden,
-                                params=nparam, macs_dense=mac_dense, macs_eff=mac_eff,
-                                mask_src=args.mask_src, keep=args.keep,
-                                keep_mid=args.keep_mid, seq=args.seq, batch=args.batch,
-                                steps=args.steps, lr=args.lr, min_lr=args.min_lr,
-                                warmup=args.warmup, clip=args.clip, seed=args.seed,
-                                aux_coef=args.aux_coef, temp=args.temp,
-                                router=int(use_router))) + "\n")
+    with open(mpath, mode, encoding="utf-8") as f:
+        if mode == "w":
+            f.write(json.dumps(dict(kind="cfg", tag=tag, vocab=vocab, d=args.d,
+                                    layers=args.layers, heads=args.heads, hidden=args.hidden,
+                                    params=nparam, macs_dense=mac_dense, macs_eff=mac_eff,
+                                    mask_src=args.mask_src, keep=args.keep,
+                                    keep_mid=args.keep_mid, seq=args.seq, batch=args.batch,
+                                    steps=args.steps, lr=args.lr, min_lr=args.min_lr,
+                                    warmup=args.warmup, clip=args.clip, seed=args.seed,
+                                    aux_coef=args.aux_coef, temp=args.temp,
+                                    router=int(use_router))) + "\n")
     print("[run] tag=%s steps=%d -> %s" % (tag, args.steps, mpath), flush=True)
     val_loss = float("nan")
-    for st in range(1, args.steps + 1):
+    for st in range(start_st, args.steps + 1):
         lr = lr_at(st - 1, args.steps)
         for g in opt.param_groups:
             g["lr"] = lr
@@ -639,7 +730,33 @@ def main():
                 nrm = float(g.norm())
                 if nrm > args.clip:
                     g.mul_(args.clip / (nrm + 1e-6))
+        if unit:
+            prev = [p.detach().clone() for p, _, _ in mpairs]
         opt.step()
+        if unit:
+            wf = args.sched_warm_frac or (args.warmup / max(1, args.steps))
+            gglob = unit_sched_factor(st / args.steps, wf, args.sched_min)
+            bt_t = args.batch * args.seq * st
+            tf = st / args.steps
+            hfac, mfac = {}, {}
+            for i, blk in enumerate(model.layers):
+                hfac[i] = chan_factor(blk.usage_h, args.keep, bt_t, args.d,
+                                      tf, wf, args.sched_min, gglob)
+                mfac[i] = chan_factor(blk.usage_mid, args.keep_mid, bt_t, args.hidden,
+                                      tf, wf, args.sched_min, gglob)
+            with torch.no_grad():
+                for k, (p, kind, i) in enumerate(mpairs):
+                    if kind == "h_prev":
+                        f = hfac[i - 1] if i > 0 else None
+                    elif kind == "h":
+                        f = hfac[i]
+                    else:
+                        f = mfac[i]
+                    if f is None:
+                        continue
+                    delta = p - prev[k]
+                    delta.mul_(f.unsqueeze(0))
+                    p.copy_(prev[k] + delta)
         if st % 50 == 0 or st == args.steps:
             print("  step %5d lr %.2e train %.4f wall %.1fs"
                   % (st, lr, float(ce), time.time() - t_start), flush=True)
@@ -647,6 +764,21 @@ def main():
             t_e = time.time()
             val_loss = eval_val(model, vb, args.seq, cfg)
             stats = mask_stats_v2(model, vb, cfg)
+            if args.mask_balance > 0 and args.mask_src == "h":
+                with torch.no_grad():
+                    for b in model.layers:
+                        if b.usage_h_w is None:
+                            continue
+                        tot = float(b.usage_h_w.sum())
+                        if tot <= 0:
+                            continue
+                        r = b.usage_h_w / tot
+                        b.bias += args.mask_balance * (1.0 - b.bias.numel() * r)
+                        b.bias.clamp_(-0.5, 0.5)
+                if args.eval_every:
+                    bs = torch.stack([b.bias for b in model.layers if b.bias is not None])
+                    print("  [bal] bias: max|b|=%.3f 覆盖极差=%.3f"
+                          % (float(bs.abs().max()), float(bs.max() - bs.min())), flush=True)
             reset_window(model)
             rec = dict(kind="eval", step=st, train_loss=float(ce), val_loss=val_loss,
                        val_ppl=float(np.exp(val_loss)), wall_s=time.time() - t_start,
@@ -659,7 +791,7 @@ def main():
                      "" if not stats else
                      "  He=%.3f dead=%.3f low=%.3f cov=%.0f | Hme=%.3f deadm=%.3f"
                      " | Hval=%.3f/%.3f eff=%.0f/%.0f kept=%d/%d"
-                     " | pat=%.3f npat=%.0f top=%.3f oc=%.2f unity=%.3f"
+                     " | pat=%.3f npat=%.0f top=%.3f oc=%.2f unity=%.3f ct=%.3f"
                      % (stats.get("H_mask_eval", 0), stats.get("dead_eval", 0),
                         stats.get("low_eval", 0), stats.get("cover90_eval", 0),
                         stats.get("H_mid_eval", 0), stats.get("dead_mid_eval", 0),
@@ -668,9 +800,37 @@ def main():
                         stats.get("kept_h", 0), stats.get("kept_mid", 0),
                         stats.get("pat_H", 0), stats.get("n_pat", 0),
                         stats.get("top_share", 0), stats.get("oc_ratio", 0),
-                        stats.get("union_mean", 0))),
+                        stats.get("union_mean", 0), stats.get("cover_tok", 0))),
                   flush=True)
+        if args.stop_at and st >= args.stop_at:
+            print("[stop] 到达 --stop-at %d，提前停（lr 曲线仍按 --steps=%d）" % (args.stop_at, args.steps), flush=True)
+            break
+        if args.ckpt_every and (st % args.ckpt_every == 0 or st == args.steps):
+            torch.save({"model": model.state_dict(), "opt": opt.state_dict(),
+                        "step": st, "cursor": cursor,
+                        "ctr": [{nm: getattr(b, nm) for nm in
+                                 ("usage_h", "usage_mid", "usage_h_w", "usage_mid_w")}
+                                for b in model.layers],
+                        "bias": [b.bias for b in model.layers]}, ck_path)
     wall = time.time() - t_start
+    if unit:
+        wf = args.sched_warm_frac or (args.warmup / max(1, args.steps))
+        gglob = unit_sched_factor(1.0, wf, args.sched_min)
+        bt_t = args.batch * args.seq * args.steps
+        allf = []
+        for i, blk in enumerate(model.layers):
+            f = chan_factor(blk.usage_h, args.keep, bt_t, args.d, 1.0, wf,
+                            args.sched_min, gglob)
+            if f is not None:
+                allf.append(f)
+        if allf:
+            f = torch.cat(allf)
+            print("[sched] unit: 通道 lr 比 min=%.3f med=%.3f max=%.3f | 停在预热区 <1: %.1f%% "
+                  "| 已退火 <0.5: %.1f%% | 超前 >1.5: %.1f%%"
+                  % (float(f.min()), float(f.median()), float(f.max()),
+                     100.0 * float((f < 0.999).float().mean()),
+                     100.0 * float((f < 0.5).float().mean()),
+                     100.0 * float((f > 1.5).float().mean())), flush=True)
     with open(mpath, "a", encoding="utf-8") as f:
         f.write(json.dumps(dict(kind="final", step=args.steps, final_val=val_loss,
                                 wall_s=wall,
@@ -708,8 +868,19 @@ def mask_stats_v2(model, vb, cfg):
         b.ev_h = None
         b.ev_mid = None
     masks0 = None
+    tok_u, tok_u_depth = [], None
     for i in range(vb.shape[0]):
         _, _, masks = model(vb[i], cfg, collect=True)
+        ms = [mk for mk in masks if mk is not None]
+        if ms:
+            st_ms = torch.stack(ms, 0)                      # [层数, B, T, d]
+            run = torch.zeros_like(st_ms[0])
+            dcur = []
+            for mk in st_ms:                                # 逐层累积「读到过的通道」
+                run = torch.maximum(run, mk)
+                dcur.append(float(run.mean()))
+            tok_u.append(float(run.mean()))                 # 该 token 全模型读到的比例
+            tok_u_depth = dcur if tok_u_depth is None else tok_u_depth
         if masks0 is None:
             masks0 = masks
     cfg.ev_acc = False
@@ -753,6 +924,8 @@ def mask_stats_v2(model, vb, cfg):
                          if len(out["per_layer_union"]) > 1 else 0.0)
     out["per_layer_union"] = [round(v, 4) for v in out["per_layer_union"]]
     out["per_layer_used"] = [round(v, 4) for v in out["per_layer_used"]]
+    out["cover_tok"] = float(np.mean(tok_u)) if tok_u else 0.0
+    out["cover_tok_by_depth"] = [round(v, 4) for v in (tok_u_depth or [])]
 
     st = [mask_structure(mk) for mk in masks0 if mk is not None]
     rnd = None
