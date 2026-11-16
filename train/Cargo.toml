@@ -1,7 +1,5 @@
-﻿[package]
+[package]
 name = "vmlm-train"
-license = "MPL-2.0"
-publish = false
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
@@ -80,6 +78,16 @@ path = "src/eserNN_run.rs"
 [[bin]]
 name = "vmlm-rnn-train"
 path = "src/rnn_train.rs"
+
+# ===== T4：声学骨架训练驱动（sx 项目）=====
+[[bin]]
+name = "vmlm-ac-train"
+path = "src/ac_train.rs"
+
+# ===== T8：st9 状态批量 dump（可分性探针）=====
+[[bin]]
+name = "vmlm-st9-dump"
+path = "src/st9_dump.rs"
 
 # ===== P8：Transformer 训练闭环（成员 F）=====
 [[bin]]
@@ -384,3 +392,31 @@ path = "src/bin/vmlm_chat.rs"
 default = ["conn-sparse"]
 conn-sparse = ["vmlm-core/conn-sparse", "vmlm-ops/conn-sparse"]
 dense-only = []
+
+# [P30-A0] 反向内核微基准（V0-V4 变体 + 逐位一致性）
+[[bin]]
+name = "vmlm-b1-bwd-bench"
+path = "src/bench_b1_bwd.rs"
+
+# ===== P35 Rust 侧：动态激活稀疏真稀疏执行 vs 稠密 GEMM（PATH: P35）=====
+# 回答「PyTorch 稀疏慢的地方 Rust 是不是更快」：每 token 只累加 m 行权重
+# （W 存 [in,out] 使行连续），选择用 std 的 O(n) select_nth 而不是 topk 排序；
+# 依次报 gate/up、qkv、down、head 四个形状的 ms 与加速比，并折算每步总量。
+[[bin]]
+name = "vmlm-dynmask-bench"
+path = "src/dynmask_bench.rs"
+
+[[bin]]
+name = "vmlm-bench-decode"
+path = "src/bench_decode.rs"
+
+[[bin]]
+name = "vmlm-bench-decode-opt"
+path = "src/bench_decode_opt.rs"
+
+# ===== P62：状态向量（选择性 SSM）模型的引擎侧推理（生产路径）=====
+# 模型 = 导出工具 tools/p68_export_ssm.py 产出的 .s5q；decode 无 KV cache，状态常数 1KB。
+# 判据：--check 与 PyTorch 参考 logits 对拍（max|Δ| 与 argmax 全一致），--speed 报 prefill/decode 吞吐。
+[[bin]]
+name = "vmlm-ssm"
+path = "src/ssm_run.rs"
